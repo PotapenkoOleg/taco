@@ -29,6 +29,7 @@ async fn main() {
     let inventory_manager = load_inventory_file(&args.inventory);
     let settings_manager = load_settings_file(&args.settings);
     let secrets_manager = load_secrets_file(&args.secrets);
+    let mut history: Vec<String> = Vec::new();
     print_separator();
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
@@ -36,6 +37,13 @@ async fn main() {
         if command.to_lowercase().trim().cmp(&"exit".to_string()).is_eq() {
             process::exit(0);
         }
+        if command.to_lowercase().trim().cmp(&"history".to_string()).is_eq() {
+            for (index, value) in history.iter().enumerate() {
+                println!("{}: {}", index, value)
+            }
+            continue;
+        }
+        history.push(command.clone());
         process_command(command, &inventory_manager).await;
     }
 }
@@ -88,11 +96,13 @@ fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
 }
 
 async fn process_command(command: String, inventory_manager: &InventoryManager) {
-    println!("PROCESSING: {}", &command);
+    print_separator();
+    println!("Processing: [{}]", &command.red());
+    print_separator();
 
     let mut connection_strings = inventory_manager.get_connection_strings();
 
-    println!("{:?}", connection_strings);
+    //println!("{:?}", connection_strings);
 
     let mut set = JoinSet::new();
 
@@ -108,6 +118,7 @@ async fn process_command(command: String, inventory_manager: &InventoryManager) 
         let idx = res.unwrap();
         //println!("{:?}", idx);
     }
+    print_separator();
 }
 
 async fn pg_main(i: usize, connection_string: String, command: String) -> Result<u64, Error> {
@@ -136,8 +147,8 @@ async fn pg_main(i: usize, connection_string: String, command: String) -> Result
     // let d = &rows[0];
     // let p = d.columns().get(0).unwrap()
     let value: &str = rows[0].get(0);
-    println!("{}: [{}] {:?}", &i, &connection_string, value);
-    //print_separator();
+    println!("{}: [{}] {}", &i, &connection_string.green(), value.yellow());
+
 
     Ok(rows.len() as u64)
 }

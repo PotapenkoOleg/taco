@@ -48,7 +48,7 @@ impl InventoryManager {
                     .collect();
                 let default_cluster = clusters.first().unwrap();
 
-                println!("{:?}", default_cluster);
+                //println!("{:?}", default_cluster);
 
                 let connection_strings = vec![
                     "host=localhost port=5432 user=postgres password=postgres".to_string(),
