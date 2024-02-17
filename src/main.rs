@@ -1,12 +1,23 @@
 mod version;
 
+mod clap_parser;
+mod inventory;
+mod settings;
+mod secrets;
+
 use std::any::Any;
 use tokio::task::JoinSet;
 use tokio_postgres::{NoTls, Error};
 use tokio_postgres::types::ToSql;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Read, Write};
 use std::process;
+use clap::Parser;
 use colored::Colorize;
+use crate::clap_parser::Args;
+use crate::inventory::inventory_manager::InventoryManager;
+use crate::secrets::secrets_manager::SecretsManager;
+use crate::settings::settings_manager::SettingsManager;
+
 use crate::version::{COPYRIGHT, COPYRIGHT_YEARS, LICENSE, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH};
 
 #[tokio::main]
@@ -14,15 +25,18 @@ async fn main() {
     print_separator();
     print_header();
     print_separator();
-    load_inventory_file();
+    let args = Args::parse();
+    let inventory_manager = load_inventory_file(&args.inventory);
+    let settings_manager = load_settings_file(&args.settings);
+    let secrets_manager = load_secrets_file(&args.secrets);
     print_separator();
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let command = line.unwrap();
-        if command.cmp(&"exit".to_string()).is_eq() {
+        if command.to_lowercase().trim().cmp(&"exit".to_string()).is_eq() {
             process::exit(0);
         }
-        process_command(command).await;
+        process_command(command, &inventory_manager).await;
     }
 }
 
@@ -51,29 +65,35 @@ fn print_separator() {
     println!("{}", repeated_string);
 }
 
-fn load_inventory_file() {
-    println!("{}", "Loading inventory file: inventory.taco ... DONE".green());
-    println!("{}", "Loading settings file: settings.taco ... DONE".green());
-    println!("{}", "Loading secrets file: secrets.taco ... DONE".green());
+fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
+    print!("Loading inventory file: <{}> ... ", inventory_file_name);
+    let mut inventory_manager = InventoryManager::new(&inventory_file_name);
+    inventory_manager.load_inventory_from_file().expect("TODO: panic message");
+    print!("DONE\n");
+    inventory_manager
 }
 
-async fn process_command(command: String) {
+fn load_settings_file(settings_file_name: &str) -> SettingsManager {
+    print!("Loading settings file: <{}> ... ", settings_file_name);
+    let settings_manager = SettingsManager::new(&settings_file_name);
+    print!("DONE\n");
+    settings_manager
+}
+
+fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
+    print!("Loading secrets file: <{secrets_file_name}> ... ");
+    let secrets_manager = SecretsManager::new(&secrets_file_name);
+    print!("DONE\n");
+    secrets_manager
+}
+
+async fn process_command(command: String, inventory_manager: &InventoryManager) {
     println!("PROCESSING: {}", &command);
 
-    let mut connection_strings = vec![
-        "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-        // "host=localhost port=5432 user=postgres password=postgres".to_string(),
-    ];
+    let mut connection_strings = inventory_manager.get_connection_strings();
+
+    println!("{:?}", connection_strings);
+
     let mut set = JoinSet::new();
 
     for i in 0..connection_strings.len() {
