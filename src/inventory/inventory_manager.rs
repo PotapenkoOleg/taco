@@ -1,4 +1,6 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -33,10 +35,7 @@ impl InventoryManager {
         Ok(())
     }
 
-    pub fn get_connection_strings(&self) -> Vec<String> {
-        let connection_string_template =
-            "host={} port={} dbname={} user={} password={} connect_timeout={} application_name=taco";
-        // if let Some(deployment) = &self.deployment {} else {}
+    pub fn get_connection_strings(&self, server_group_name: &String) -> Vec<String> {
         match &self.deployment {
             Some(deployment) => {
                 let environments: Vec<&Environment> = deployment.environments.iter()
@@ -47,14 +46,15 @@ impl InventoryManager {
                     .filter(|cluster| (*cluster.name).cmp(&default_environment.default_cluster_name) == Ordering::Equal)
                     .collect();
                 let default_cluster = clusters.first().unwrap();
+                let server_groups: HashMap<String, Vec<Server>> = default_cluster.server_groups.iter()
+                    .map(|sg| (sg.name.clone(), sg.servers.clone()))
+                    .collect();
+                // TODO: add "all"
+                //let p = server_groups.keys();
+                let connection_strings = server_groups.get(server_group_name).unwrap().iter()
+                    .map(|server: &Server| server.to_string())
+                    .collect();
 
-                //println!("{:?}", default_cluster);
-
-                let connection_strings = vec![
-                    "host=localhost port=5432 user=postgres password=postgres".to_string(),
-                    "host=localhost port=5432 user=postgres password=postgres".to_string(),
-                    "host=localhost port=5432 user=postgres password=postgres".to_string(),
-                ];
                 return connection_strings;
             }
             None => {
@@ -96,7 +96,7 @@ struct ServerGroup {
 }
 
 // https://docs.rs/postgres/latest/postgres/config/struct.Config.html#
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 struct Server {
     host: String,
     port: Option<i32>,
@@ -104,8 +104,19 @@ struct Server {
     user: Option<String>,
     password: Option<String>,
     connect_timeout_sec: Option<i32>,
-    // application_name
 }
 
-
-
+impl fmt::Display for Server {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let connection_string = format!("host={} port={} dbname={} user={} password={} connect_timeout={} application_name=taco",
+                                        self.host,
+                                        self.port.unwrap(),
+                                        self.db_name.as_ref().unwrap(),
+                                        self.user.as_ref().unwrap(),
+                                        self.password.as_ref().unwrap(),
+                                        self.connect_timeout_sec.unwrap()
+        );
+        f.write_str(connection_string.as_ref()).expect("TODO: panic message");
+        Ok(())
+    }
+}

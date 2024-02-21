@@ -35,11 +35,11 @@ environments:
                 password: postgres
                 connect_timeout_sec: 30
               - host: localhost
-                port: null
-                db_name: null
-                user: null
-                password: null
-                connect_timeout_sec: null
+                port: 5432
+                db_name: postgres
+                user: postgres
+                password: postgres
+                connect_timeout_sec: 30
       - name: cloud2
         default_port: 5432
         default_db_name: postgres
