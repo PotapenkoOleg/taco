@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -35,7 +35,7 @@ impl InventoryManager {
         Ok(())
     }
 
-    pub fn get_connection_strings(&self, server_group_name: &String) -> Vec<String> {
+    pub fn get_servers(&self, server_group_name: &String) -> HashSet<Server> {
         match &self.deployment {
             Some(deployment) => {
                 let environments: Vec<&Environment> = deployment.environments.iter()
@@ -51,14 +51,22 @@ impl InventoryManager {
                     .collect();
                 // TODO: add "all"
                 //let p = server_groups.keys();
-                let connection_strings = server_groups.get(server_group_name).unwrap().iter()
-                    .map(|server: &Server| server.to_string())
-                    .collect();
-
-                return connection_strings;
+                let mut servers: HashSet<Server> = HashSet::new();
+                for server in server_groups.get(server_group_name).unwrap() {
+                    let new_server = Server::from(
+                        server,
+                        &default_cluster.default_port,
+                        &default_cluster.default_db_name,
+                        &default_cluster.default_user,
+                        &default_cluster.default_password,
+                        &default_cluster.default_connect_timeout_sec,
+                    );
+                    servers.insert(new_server);
+                }
+                return servers;
             }
             None => {
-                return Vec::new();
+                return HashSet::new();
             }
         }
     }
@@ -66,55 +74,76 @@ impl InventoryManager {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Deployment {
-    name: String,
-    default_environment_name: String,
-    environments: Vec<crate::inventory::inventory_manager::Environment>,
+    pub name: String,
+    pub default_environment_name: String,
+    pub environments: Vec<Environment>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct Environment {
-    name: String,
-    default_cluster_name: String,
-    clusters: Vec<Cluster>,
+pub struct Environment {
+    pub name: String,
+    pub default_cluster_name: String,
+    pub clusters: Vec<Cluster>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct Cluster {
-    name: String,
-    default_port: Option<i32>,
-    default_db_name: Option<String>,
-    default_user: Option<String>,
-    default_password: Option<String>,
-    default_connect_timeout_sec: Option<i32>,
-    server_groups: Vec<ServerGroup>,
+pub struct Cluster {
+    pub name: String,
+    pub default_port: Option<i32>,
+    pub default_db_name: Option<String>,
+    pub default_user: Option<String>,
+    pub default_password: Option<String>,
+    pub default_connect_timeout_sec: Option<i32>,
+    pub server_groups: Vec<ServerGroup>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct ServerGroup {
-    name: String,
-    servers: Vec<Server>,
+pub struct ServerGroup {
+    pub name: String,
+    pub servers: Vec<Server>,
 }
 
 // https://docs.rs/postgres/latest/postgres/config/struct.Config.html#
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-struct Server {
-    host: String,
-    port: Option<i32>,
-    db_name: Option<String>,
-    user: Option<String>,
-    password: Option<String>,
-    connect_timeout_sec: Option<i32>,
+#[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone, Debug)]
+pub struct Server {
+    pub host: String,
+    pub port: Option<i32>,
+    pub db_name: Option<String>,
+    pub user: Option<String>,
+    pub password: Option<String>,
+    pub connect_timeout_sec: Option<i32>,
+}
+
+impl Server {
+    fn from(
+        from: &Server,
+        port: &Option<i32>,
+        db_name: &Option<String>,
+        user: &Option<String>,
+        password: &Option<String>,
+        connect_timeout_sec: &Option<i32>,
+    ) -> Self {
+        Self {
+            host: from.host.clone(),
+            port: if from.port.is_none() { port.clone() } else { from.port.clone() },
+            db_name: if from.db_name.is_none() { db_name.clone() } else { from.db_name.clone() },
+            user: if from.user.is_none() { user.clone() } else { from.user.clone() },
+            password: if from.password.is_none() { password.clone() } else { from.password.clone() },
+            connect_timeout_sec: if from.connect_timeout_sec.is_none() { connect_timeout_sec.clone() } else { from.connect_timeout_sec.clone() },
+        }
+    }
 }
 
 impl fmt::Display for Server {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let connection_string = format!("host={} port={} dbname={} user={} password={} connect_timeout={} application_name=taco",
-                                        self.host,
-                                        self.port.unwrap(),
-                                        self.db_name.as_ref().unwrap(),
-                                        self.user.as_ref().unwrap(),
-                                        self.password.as_ref().unwrap(),
-                                        self.connect_timeout_sec.unwrap()
+        let connection_string = format!(
+            "host={} port={} dbname={} user={} password={} connect_timeout={} application_name=taco",
+            self.host,
+            self.port.unwrap(),
+            self.db_name.as_ref().unwrap(),
+            self.user.as_ref().unwrap(),
+            self.password.as_ref().unwrap(),
+            self.connect_timeout_sec.unwrap()
         );
         f.write_str(connection_string.as_ref()).expect("TODO: panic message");
         Ok(())

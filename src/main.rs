@@ -17,7 +17,7 @@ use colored::Colorize;
 use prettytable::{Cell, Row, row, Table};
 use serde::{Deserialize, Serialize};
 use crate::clap_parser::Args;
-use crate::inventory::inventory_manager::InventoryManager;
+use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::secrets::secrets_manager::SecretsManager;
 use crate::settings::settings_manager::SettingsManager;
 
@@ -117,18 +117,17 @@ async fn process_request(command: String, inventory_manager: &InventoryManager) 
     println!("Processing: [{}]", &raw_command.red());
     print_separator();
 
-    let mut connection_strings = inventory_manager.get_connection_strings(&raw_server_group);
+    let mut servers = inventory_manager.get_servers(&raw_server_group);
 
     let mut set = JoinSet::new();
 
-    for i in 0..connection_strings.len() {
-        let connection_string = connection_strings.pop();
+    for server in servers {
         let command_clone = raw_command.clone();
         let request_type_clone = request_type.clone();
         set.spawn(async move {
             match request_type_clone {
-                RequestType::Query => { process_query(i, connection_string.unwrap(), command_clone).await }
-                RequestType::Command => { process_command(i, connection_string.unwrap(), command_clone).await }
+                RequestType::Query => { process_query(server, command_clone).await }
+                RequestType::Command => { process_command(server, command_clone).await }
                 _ => { Ok(0u64) }
             }
         });
@@ -168,9 +167,9 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
     return (raw_parts.remove(0), raw_parts.remove(0));
 }
 
-async fn process_query(i: usize, connection_string: String, query: String) -> Result<u64, Error> {
+async fn process_query(server: Server, query: String) -> Result<u64, Error> {
     let (client, connection) =
-        tokio_postgres::connect(&connection_string, NoTls).await?;
+        tokio_postgres::connect(&server.to_string(), NoTls).await?;
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
@@ -198,27 +197,26 @@ async fn process_query(i: usize, connection_string: String, query: String) -> Re
         table.add_row(Row::new(row_vec));
     }
 
-    println!("{}: [{}]", &i, &connection_string.green(), );
+    println!("[{}] ", &server.host.green());
     print!("{}", table.to_string());
 
     Ok(rows.len() as u64)
 }
 
-async fn process_command(i: usize, connection_string: String, command: String) -> Result<u64, Error> {
+async fn process_command(server: Server, command: String) -> Result<u64, Error> {
     let (client, connection) =
-        tokio_postgres::connect(&connection_string, NoTls).await?;
+        tokio_postgres::connect(&server.to_string(), NoTls).await?;
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {}", e);
         }
     });
-    let task_id = i as i32;
 
     let query = &command;
     let statement = client.prepare(query).await?;
     let rows = client.execute(&statement, &[]).await?;
-    println!("Task # {} - {}", task_id, rows);
+    println!("[{}]: rows {} ", &server.host.green(), rows);
 
     Ok(rows)
 }
