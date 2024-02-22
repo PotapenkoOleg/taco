@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::fmt;
+use std::{fmt};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -49,26 +49,42 @@ impl InventoryManager {
                 let server_groups: HashMap<String, Vec<Server>> = default_cluster.server_groups.iter()
                     .map(|sg| (sg.name.clone(), sg.servers.clone()))
                     .collect();
-                // TODO: add "all"
-                //let p = server_groups.keys();
+
                 let mut servers: HashSet<Server> = HashSet::new();
-                for server in server_groups.get(server_group_name).unwrap() {
-                    let new_server = Server::from(
-                        server,
-                        &default_cluster.default_port,
-                        &default_cluster.default_db_name,
-                        &default_cluster.default_user,
-                        &default_cluster.default_password,
-                        &default_cluster.default_connect_timeout_sec,
-                    );
-                    servers.insert(new_server);
+
+                if server_group_name.to_lowercase().trim().cmp(&"all".to_string()).is_eq() {
+                    for server_groups_key in server_groups.keys() {
+                        collect_servers_in_server_group(&mut servers, server_groups_key, default_cluster, &server_groups);
+                    }
+                } else {
+                    collect_servers_in_server_group(&mut servers, server_group_name, default_cluster, &server_groups);
                 }
+
                 return servers;
             }
             None => {
                 return HashSet::new();
             }
         }
+    }
+}
+
+fn collect_servers_in_server_group(
+    servers: &mut HashSet<Server>,
+    server_group_name: &String,
+    default_cluster: &&Cluster,
+    server_groups: &HashMap<String, Vec<Server>>,
+) {
+    for server in server_groups.get(server_group_name).unwrap() {
+        let new_server = Server::from(
+            server,
+            &default_cluster.default_port,
+            &default_cluster.default_db_name,
+            &default_cluster.default_user,
+            &default_cluster.default_password,
+            &default_cluster.default_connect_timeout_sec,
+        );
+        servers.insert(new_server);
     }
 }
 

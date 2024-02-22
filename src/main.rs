@@ -5,17 +5,14 @@ mod inventory;
 mod settings;
 mod secrets;
 
-use std::any::Any;
-use std::fmt::{Debug, format};
+use std::fmt::{Debug};
 use tokio::task::JoinSet;
 use tokio_postgres::{NoTls, Error};
-use tokio_postgres::types::ToSql;
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, BufRead};
 use std::process;
 use clap::Parser;
 use colored::Colorize;
-use prettytable::{Cell, Row, row, Table};
-use serde::{Deserialize, Serialize};
+use prettytable::{Cell, Row, Table};
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::secrets::secrets_manager::SecretsManager;
@@ -117,7 +114,7 @@ async fn process_request(command: String, inventory_manager: &InventoryManager) 
     println!("Processing: [{}]", &raw_command.red());
     print_separator();
 
-    let mut servers = inventory_manager.get_servers(&raw_server_group);
+    let servers = inventory_manager.get_servers(&raw_server_group);
 
     let mut set = JoinSet::new();
 
@@ -135,7 +132,7 @@ async fn process_request(command: String, inventory_manager: &InventoryManager) 
 
     let mut total: u64 = 0;
     while let Some(res) = set.join_next().await {
-        //total += res.unwrap().unwrap();
+        total += res.unwrap().unwrap();
     }
     print_separator();
     println!("Total rows: {}", total);

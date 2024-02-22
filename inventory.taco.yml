@@ -16,7 +16,7 @@ environments:
             servers:
               - host: localhost
                 port: 5432
-                db_name: postgresh
+                db_name: postgres
                 user: postgres
                 password: postgres
                 connect_timeout_sec: 30
