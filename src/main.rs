@@ -15,6 +15,8 @@ use std::sync::{Arc, Mutex};
 use clap::Parser;
 use colored::Colorize;
 use prettytable::{Cell, Row, Table};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::secrets::secrets_manager::SecretsManager;
@@ -25,7 +27,7 @@ use crate::version::{COPYRIGHT, COPYRIGHT_YEARS, LICENSE, PRODUCT_NAME, VERSION_
 #[tokio::main]
 async fn main() {
     print_separator();
-    print_header();
+    print_banner();
     print_separator();
     let args = Args::parse();
     let inventory_manager = load_inventory_file(&args.inventory);
@@ -42,7 +44,7 @@ async fn main() {
             process::exit(0);
         }
         if preprocessed_command.cmp(&"history".to_string()).is_eq() {
-            println!("{}", "HISTORY".yellow());
+            println!("HISTORY");
             for (index, value) in history.iter().enumerate() {
                 println!("{}: {}", index, value)
             }
@@ -77,22 +79,18 @@ async fn main() {
     }
 }
 
-fn print_header() {
-    let version =
-        format!("{} version {}.{}.{} ({})",
-                PRODUCT_NAME,
-                VERSION_MAJOR,
-                VERSION_MINOR,
-                VERSION_PATCH,
-                VERSION_ALIAS
-        ).red().bold();
-    println!("{}", version);
-
-    let license = format!("License: {}", LICENSE).red();
-    println!("{}", license);
-
-    let copyright = format!("Copyright © {}. {}.", COPYRIGHT, COPYRIGHT_YEARS).red();
-    println!("{}", copyright);
+fn print_banner() {
+    println!("{}",
+             format!("{} version {}.{}.{} ({})",
+                     PRODUCT_NAME,
+                     VERSION_MAJOR,
+                     VERSION_MINOR,
+                     VERSION_PATCH,
+                     VERSION_ALIAS
+             )
+    );
+    println!("License: {}", LICENSE);
+    println!("Copyright © {}. {}.", COPYRIGHT, COPYRIGHT_YEARS);
 }
 
 fn print_separator() {
@@ -140,16 +138,30 @@ async fn process_request(
 
     let servers = inventory_manager.get_servers(&raw_server_group);
 
+    let (tx, mut rx) = mpsc::channel(32);
+
+    tokio::spawn(async move {
+        while let result = rx.recv().await {
+            match result {
+                Some(printable_result) => {
+                    print!("{}", printable_result);
+                }
+                None => {}
+            }
+        }
+    });
+
     let mut set = JoinSet::new();
 
     for server in servers {
         let command_clone = raw_command.clone();
         let request_type_clone = request_type.clone();
         let settings_clone = settings.clone();
+        let tx_clone = tx.clone();
         set.spawn(async move {
             match request_type_clone {
-                RequestType::Query => { process_query(server, command_clone, settings_clone).await }
-                RequestType::Command => { process_command(server, command_clone, settings_clone).await }
+                RequestType::Query => { process_query(server, command_clone, settings_clone, tx_clone).await }
+                RequestType::Command => { process_command(server, command_clone, settings_clone, tx_clone).await }
                 _ => { Ok(0u64) }
             }
         });
@@ -189,7 +201,12 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
     return (raw_parts.remove(0), raw_parts.remove(0));
 }
 
-async fn process_query(mut server: Server, query: String, settings: Arc<Mutex<HashMap::<String, String>>>) -> Result<u64, Error> {
+async fn process_query(
+    mut server: Server,
+    query: String,
+    settings: Arc<Mutex<HashMap::<String, String>>>,
+    tx: Sender<String>,
+) -> Result<u64, Error> {
     { // this block for mutex release
         let settings_lock = settings.lock().unwrap();
         match settings_lock.get(&"db".to_string()) {
@@ -229,13 +246,20 @@ async fn process_query(mut server: Server, query: String, settings: Arc<Mutex<Ha
         table.add_row(Row::new(row_vec));
     }
 
-    println!("[{}:{}] ", &server.host.green(), &server.db_name.unwrap().yellow());
-    print!("{}", table.to_string());
+    let mut result = String::new();
+    result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+    result.push_str(&format!("{}\n", table.to_string()));
+    tx.send(result).await.expect("TODO: panic message");
 
     Ok(rows.len() as u64)
 }
 
-async fn process_command(mut server: Server, command: String, settings: Arc<Mutex<HashMap::<String, String>>>) -> Result<u64, Error> {
+async fn process_command(
+    mut server: Server,
+    command: String,
+    settings: Arc<Mutex<HashMap::<String, String>>>,
+    tx: Sender<String>,
+) -> Result<u64, Error> {
     { // this block for mutex release
         let settings_lock = settings.lock().unwrap();
         match settings_lock.get(&"db".to_string()) {
@@ -258,7 +282,10 @@ async fn process_command(mut server: Server, command: String, settings: Arc<Mute
     let query = &command;
     let statement = client.prepare(query).await?;
     let rows = client.execute(&statement, &[]).await?;
-    println!("[{}:{}]: rows {} ", &server.host.green(), &server.db_name.unwrap().yellow(), rows);
+
+    let mut result = String::new();
+    result.push_str(&format!("[{}:{}]: rows {}", &server.host, &server.db_name.unwrap(), rows));
+    tx.send(result).await.expect("TODO: panic message");
 
     Ok(rows)
 }
