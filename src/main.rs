@@ -90,7 +90,7 @@ fn print_banner() {
              )
     );
     println!("License: {}", LICENSE);
-    println!("Copyright © {}. {}.", COPYRIGHT, COPYRIGHT_YEARS);
+    println!("Copyright © {}. {}", COPYRIGHT, COPYRIGHT_YEARS);
 }
 
 fn print_separator() {
@@ -169,7 +169,7 @@ async fn process_request(
 
     let mut total: u64 = 0;
     while let Some(res) = set.join_next().await {
-        total += res.unwrap().unwrap();
+        total += res.unwrap().unwrap(); // TODO
     }
     print_separator();
     println!("Total rows: {}", total);
@@ -217,22 +217,51 @@ async fn process_query(
         }
     }
 
-    let (client, connection) =
-        tokio_postgres::connect(&server.to_string(), NoTls).await?;
+    let connect_result = tokio_postgres::connect(&server.to_string(), NoTls).await;
+    if connect_result.as_ref().is_err() {
+        let mut result = String::new();
+        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&*connect_result.as_ref().err().unwrap().to_string());
+        result.push_str(&*"\n".to_string());
+        if tx.send(result.clone()).await.is_err() {
+            eprintln!("{}", result);
+        }
+        return Ok(0u64);
+    }
 
+    let (client, connection) = connect_result.unwrap();
     tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
+        if connection.await.as_ref().is_err() {
+            eprintln!("ERROR OPEN CONNECTION");
         }
     });
 
-    let rows = client
-        .query(&query, &[])
-        .await?;
+    let rows_result = client.query(&query, &[]).await;
+    if rows_result.as_ref().is_err() {
+        let mut result = String::new();
+        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&*rows_result.as_ref().err().unwrap().to_string());
+        result.push_str(&*"\n".to_string());
+        if tx.send(result.clone()).await.is_err() {
+            eprintln!("{}", result);
+        }
+        return Ok(0u64);
+    }
+
+    let rows = rows_result.unwrap();
+
+    if rows.len() == 0 {
+        return Ok(0u64);
+    }
 
     let mut table = Table::new();
 
-    // https://stackoverflow.com/questions/62755435/how-to-enumerate-over-columns-with-tokio-postgres-when-the-field-types-are-unkno
+    let mut row_vec: Vec<Cell> = Vec::new();
+    row_vec.push(Cell::new(&""));
+    for column in rows[0].columns().iter() {
+        row_vec.push(Cell::new(column.name()));
+    }
+    table.add_row(Row::new(row_vec));
     for (row_index, row) in rows.iter().enumerate() {
         let mut row_vec: Vec<Cell> = Vec::new();
         row_vec.push(Cell::new(&*format!("{}", row_index)));
@@ -242,6 +271,12 @@ async fn process_query(
                 let value: &str = row.get(col_index);
                 row_vec.push(Cell::new(value));
             }
+            if col_type == "int" || col_type == "serial" || col_type == "int4" {
+                let value: i32 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()))
+            }
+            // TODO: more types
+            // row_vec.push(Cell::new("")); //place holder for unknown types
         }
         table.add_row(Row::new(row_vec));
     }
@@ -249,7 +284,9 @@ async fn process_query(
     let mut result = String::new();
     result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
     result.push_str(&format!("{}\n", table.to_string()));
-    tx.send(result).await.expect("TODO: panic message");
+    if tx.send(result).await.as_ref().is_err() {
+        eprintln!("ERROR SENDING RESULT TO PRINTER THREAD");
+    }
 
     Ok(rows.len() as u64)
 }
@@ -270,22 +307,57 @@ async fn process_command(
         }
     }
 
-    let (client, connection) =
-        tokio_postgres::connect(&server.to_string(), NoTls).await?;
+    let connect_result = tokio_postgres::connect(&server.to_string(), NoTls).await;
+    if connect_result.as_ref().is_err() {
+        let mut result = String::new();
+        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&*connect_result.as_ref().err().unwrap().to_string());
+        result.push_str(&*"\n".to_string());
+        if tx.send(result.clone()).await.is_err() {
+            eprintln!("{}", result);
+        }
+        return Ok(0u64);
+    }
 
+    let (client, connection) = connect_result.unwrap();
     tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
+        if connection.await.as_ref().is_err() {
+            eprintln!("ERROR OPEN CONNECTION");
         }
     });
 
     let query = &command;
-    let statement = client.prepare(query).await?;
-    let rows = client.execute(&statement, &[]).await?;
+    let statement_result = client.prepare(query).await;
+    if statement_result.as_ref().is_err() {
+        let mut result = String::new();
+        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&*statement_result.as_ref().err().unwrap().to_string());
+        result.push_str(&*"\n".to_string());
+        if tx.send(result.clone()).await.is_err() {
+            eprintln!("{}", result);
+        }
+        return Ok(0u64);
+    }
+    let statement = statement_result.unwrap();
+    let rows_result = client.execute(&statement, &[]).await;
+    if rows_result.as_ref().is_err() {
+        let mut result = String::new();
+        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&*rows_result.as_ref().err().unwrap().to_string());
+        result.push_str(&*"\n".to_string());
+        if tx.send(result.clone()).await.is_err() {
+            eprintln!("{}", result);
+        }
+        return Ok(0u64);
+    }
+
+    let rows = rows_result.unwrap();
 
     let mut result = String::new();
-    result.push_str(&format!("\n[{}:{}]: rows {}", &server.host, &server.db_name.unwrap(), rows));
-    tx.send(result).await.expect("TODO: panic message");
+    result.push_str(&format!("\n[{}:{}]: rows {}\n", &server.host, &server.db_name.unwrap(), rows));
+    if tx.send(result).await.as_ref().is_err() {
+        eprintln!("ERROR SENDING RESULT TO PRINTER THREAD");
+    }
 
     Ok(rows)
 }
