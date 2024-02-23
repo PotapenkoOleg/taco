@@ -125,7 +125,7 @@ fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
 async fn process_request(
     command: String,
     inventory_manager: &InventoryManager,
-    settings: &Arc<Mutex<HashMap::<String, String>>>,
+    settings: &Arc<Mutex<HashMap<String, String>>>,
 ) {
     let request_type = get_request_type(&command);
     let get_raw_command_result = get_raw_command(&command, &request_type);
@@ -204,7 +204,7 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
 async fn process_query(
     mut server: Server,
     query: String,
-    settings: Arc<Mutex<HashMap::<String, String>>>,
+    settings: Arc<Mutex<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
     { // this block for mutex release
@@ -257,7 +257,7 @@ async fn process_query(
 async fn process_command(
     mut server: Server,
     command: String,
-    settings: Arc<Mutex<HashMap::<String, String>>>,
+    settings: Arc<Mutex<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
     { // this block for mutex release
