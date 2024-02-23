@@ -284,7 +284,7 @@ async fn process_command(
     let rows = client.execute(&statement, &[]).await?;
 
     let mut result = String::new();
-    result.push_str(&format!("[{}:{}]: rows {}", &server.host, &server.db_name.unwrap(), rows));
+    result.push_str(&format!("\n[{}:{}]: rows {}", &server.host, &server.db_name.unwrap(), rows));
     tx.send(result).await.expect("TODO: panic message");
 
     Ok(rows)
