@@ -5,11 +5,13 @@ mod inventory;
 mod settings;
 mod secrets;
 
+use std::collections::HashMap;
 use std::fmt::{Debug};
 use tokio::task::JoinSet;
 use tokio_postgres::{NoTls, Error};
 use std::io::{self, BufRead};
 use std::process;
+use std::sync::{Arc, Mutex};
 use clap::Parser;
 use colored::Colorize;
 use prettytable::{Cell, Row, Table};
@@ -29,21 +31,24 @@ async fn main() {
     let inventory_manager = load_inventory_file(&args.inventory);
     let settings_manager = load_settings_file(&args.settings);
     let secrets_manager = load_secrets_file(&args.secrets);
-    let mut history: Vec<String> = Vec::new();
     print_separator();
+    let mut history: Vec<String> = Vec::new();
+    let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let command = line.unwrap();
-        if command.to_lowercase().trim().cmp(&"exit".to_string()).is_eq() {
+        let preprocessed_command = command.to_lowercase().trim().to_string();
+        if preprocessed_command.cmp(&"exit".to_string()).is_eq() {
             process::exit(0);
         }
-        if command.to_lowercase().trim().cmp(&"history".to_string()).is_eq() {
+        if preprocessed_command.cmp(&"history".to_string()).is_eq() {
+            println!("{}", "HISTORY".yellow());
             for (index, value) in history.iter().enumerate() {
                 println!("{}: {}", index, value)
             }
             continue;
         }
-        if command.to_lowercase().trim().cmp(&"help".to_string()).is_eq() {
+        if preprocessed_command.cmp(&"help".to_string()).is_eq() {
             println!("FORMAT: <SERVER_GROUP><SEPARATOR><COMMAND>");
             println!("\"?\" - separator for query");
             println!("\"!\" - separator for command");
@@ -52,8 +57,23 @@ async fn main() {
             println!("dr ! create extension citus;");
             continue;
         }
+        if preprocessed_command.starts_with("batch") {
+            // TODO:
+            println!("{}", "BATCH STARTED".yellow());
+            continue;
+        }
+        if preprocessed_command.starts_with("use") {
+            let parts = preprocessed_command.split(" ");
+            let parts_vec: Vec<&str> = parts.collect();
+            println!("USING DB <{}>", parts_vec[1]);
+            { // this block for mutex release
+                let mut settings_lock = settings.lock().unwrap();
+                settings_lock.insert("db".to_string(), parts_vec[1].to_string());
+            }
+            continue;
+        }
         history.push(command.clone());
-        process_request(command, &inventory_manager).await;
+        process_request(command, &inventory_manager, &settings).await;
     }
 }
 
@@ -104,7 +124,11 @@ fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
     secrets_manager
 }
 
-async fn process_request(command: String, inventory_manager: &InventoryManager) {
+async fn process_request(
+    command: String,
+    inventory_manager: &InventoryManager,
+    settings: &Arc<Mutex<HashMap::<String, String>>>,
+) {
     let request_type = get_request_type(&command);
     let get_raw_command_result = get_raw_command(&command, &request_type);
     let raw_server_group = get_raw_command_result.0;
@@ -121,10 +145,11 @@ async fn process_request(command: String, inventory_manager: &InventoryManager) 
     for server in servers {
         let command_clone = raw_command.clone();
         let request_type_clone = request_type.clone();
+        let settings_clone = settings.clone();
         set.spawn(async move {
             match request_type_clone {
-                RequestType::Query => { process_query(server, command_clone).await }
-                RequestType::Command => { process_command(server, command_clone).await }
+                RequestType::Query => { process_query(server, command_clone, settings_clone).await }
+                RequestType::Command => { process_command(server, command_clone, settings_clone).await }
                 _ => { Ok(0u64) }
             }
         });
@@ -164,7 +189,17 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
     return (raw_parts.remove(0), raw_parts.remove(0));
 }
 
-async fn process_query(server: Server, query: String) -> Result<u64, Error> {
+async fn process_query(mut server: Server, query: String, settings: Arc<Mutex<HashMap::<String, String>>>) -> Result<u64, Error> {
+    { // this block for mutex release
+        let settings_lock = settings.lock().unwrap();
+        match settings_lock.get(&"db".to_string()) {
+            Some(db_name) => {
+                server.set_db_name(db_name.clone());
+            }
+            _ => {}
+        }
+    }
+
     let (client, connection) =
         tokio_postgres::connect(&server.to_string(), NoTls).await?;
 
@@ -194,13 +229,23 @@ async fn process_query(server: Server, query: String) -> Result<u64, Error> {
         table.add_row(Row::new(row_vec));
     }
 
-    println!("[{}] ", &server.host.green());
+    println!("[{}:{}] ", &server.host.green(), &server.db_name.unwrap().yellow());
     print!("{}", table.to_string());
 
     Ok(rows.len() as u64)
 }
 
-async fn process_command(server: Server, command: String) -> Result<u64, Error> {
+async fn process_command(mut server: Server, command: String, settings: Arc<Mutex<HashMap::<String, String>>>) -> Result<u64, Error> {
+    { // this block for mutex release
+        let settings_lock = settings.lock().unwrap();
+        match settings_lock.get(&"db".to_string()) {
+            Some(db_name) => {
+                server.set_db_name(db_name.clone());
+            }
+            _ => {}
+        }
+    }
+
     let (client, connection) =
         tokio_postgres::connect(&server.to_string(), NoTls).await?;
 
@@ -213,7 +258,7 @@ async fn process_command(server: Server, command: String) -> Result<u64, Error> 
     let query = &command;
     let statement = client.prepare(query).await?;
     let rows = client.execute(&statement, &[]).await?;
-    println!("[{}]: rows {} ", &server.host.green(), rows);
+    println!("[{}:{}]: rows {} ", &server.host.green(), &server.db_name.unwrap().yellow(), rows);
 
     Ok(rows)
 }

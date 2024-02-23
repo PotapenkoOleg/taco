@@ -148,6 +148,16 @@ impl Server {
             connect_timeout_sec: if from.connect_timeout_sec.is_none() { connect_timeout_sec.clone() } else { from.connect_timeout_sec.clone() },
         }
     }
+
+    pub fn set_db_name(&mut self, db_name: String) {
+        self.db_name = Some(db_name);
+    }
+    pub fn get_db_name(&self) -> Option<String> {
+        match &self.db_name {
+            Some(db_name) => { Some(db_name.clone()) }
+            None => { None }
+        }
+    }
 }
 
 impl fmt::Display for Server {
