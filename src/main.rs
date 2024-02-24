@@ -101,22 +101,22 @@ fn print_separator() {
 }
 
 fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
-    print!("Loading inventory file: <{}> ... ", inventory_file_name);
+    print!("Loading Inventory File: <{}> ... ", inventory_file_name);
     let mut inventory_manager = InventoryManager::new(&inventory_file_name);
-    inventory_manager.load_inventory_from_file().expect("TODO: panic message");
+    inventory_manager.load_inventory_from_file();
     print!("DONE\n");
     inventory_manager
 }
 
 fn load_settings_file(settings_file_name: &str) -> SettingsManager {
-    print!("Loading settings file: <{}> ... ", settings_file_name);
+    print!("Loading Settings File: <{}> ... ", settings_file_name);
     let settings_manager = SettingsManager::new(&settings_file_name);
     print!("DONE\n");
     settings_manager
 }
 
 fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
-    print!("Loading secrets file: <{secrets_file_name}> ... ");
+    print!("Loading Secrets File: <{secrets_file_name}> ... ");
     let secrets_manager = SecretsManager::new(&secrets_file_name);
     print!("DONE\n");
     secrets_manager

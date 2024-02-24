@@ -1,14 +1,15 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::{fmt};
+use std::{fmt, process};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use serde::{Serialize, Deserialize};
+use serde::de::Error;
 
 pub struct InventoryManager {
     inventory_file_name: String,
-    deployment: Option<Deployment>,
+    pub deployment: Option<Deployment>,
 }
 
 impl InventoryManager {
@@ -16,23 +17,61 @@ impl InventoryManager {
         Self { inventory_file_name: inventory_file_name.to_string(), deployment: None }
     }
 
-    pub fn load_inventory_from_file(&mut self) -> Result<(), serde_yaml::Error> {
+    pub fn load_inventory_from_file(&mut self) {
         let path = Path::new(&self.inventory_file_name);
-        let mut input = File::open(&path).expect("");
+        let mut input_result = File::open(&path);
+        if input_result.as_ref().is_err() {
+            println!("ERROR OPENING INVENTORY FILE");
+            process::exit(1);
+        }
         let mut content = String::new();
-        input.read_to_string(&mut content).expect("");
-        self.deployment = Some(serde_yaml::from_str(&content)?);
-        Ok(())
+        let mut input = input_result.unwrap();
+        let read_to_string_result = input.read_to_string(&mut content);
+        if read_to_string_result.as_ref().is_err() {
+            println!("ERROR READING INVENTORY FILE");
+            process::exit(1);
+        }
+        let deserialize_result = serde_yaml::from_str(&content);
+        if deserialize_result.as_ref().is_err() {
+            println!("ERROR DESERIALIZING INVENTORY FILE");
+            process::exit(1);
+        }
+        self.deployment = Some(deserialize_result.unwrap());
     }
 
-    pub fn save_inventory_to_file(&self, deployment: Deployment) -> Result<(), serde_yaml::Error> {
-        let path = Path::new(&self.inventory_file_name);
-        let mut output = File::create(&path).expect("");
-        output.write("---\n".as_bytes()).expect("TODO: panic message");
-        let payload_str = serde_yaml::to_string(&deployment)?;
-        output.write_all(payload_str.as_bytes()).expect("");
-        output.write("...".as_bytes()).expect("TODO: panic message");
-        Ok(())
+    pub fn save_inventory_to_file(&self, deployment: &Option<Deployment>, file_name: Option<String>) {
+        let inventory_file_name = match file_name {
+            Some(name) => { name }
+            None => { self.inventory_file_name.clone() }
+        };
+        let path = Path::new(&inventory_file_name);
+        let output_result = File::create(&path);
+        if output_result.as_ref().is_err() {
+            println!("\nERROR OPENING OUTPUT INVENTORY FILE");
+            process::exit(1);
+        }
+        let mut output = output_result.unwrap();
+        let write_header_result = output.write("---\n".as_bytes());
+        if write_header_result.as_ref().is_err() {
+            println!("\nERROR WRITING OUTPUT INVENTORY FILE");
+            process::exit(1);
+        }
+
+        let serialize_result = serde_yaml::to_string(&deployment);
+        if serialize_result.as_ref().is_err() {
+            println!("\nERROR SERIALIZING OUTPUT INVENTORY FILE");
+            process::exit(1);
+        }
+        let write_serialized_result = output.write_all(serialize_result.unwrap().as_bytes());
+        if write_serialized_result.as_ref().is_err() {
+            println!("\nERROR WRITING SERIALIZED INVENTORY FILE");
+            process::exit(1);
+        }
+        let write_tail_result = output.write("...".as_bytes());
+        if write_tail_result.as_ref().is_err() {
+            println!("\nERROR WRITING INVENTORY FILE TAIL");
+            process::exit(1);
+        }
     }
 
     pub fn get_servers(&self, server_group_name: &String) -> HashSet<Server> {
