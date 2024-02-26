@@ -400,7 +400,7 @@ async fn process_query(
                 continue;
             }
             if col_type == "interval" {
-                // let value: Interval = row.get(col_index);
+                // let value: IntervalWrapper = row.get(col_index);
                 // row_vec.push(Cell::new(&*value.to_string()));
                 // TODO:
                 row_vec.push(Cell::new("?interval?"));
@@ -529,6 +529,25 @@ enum RequestType {
     Command,
     Unknown,
 }
+
+struct IntervalWrapper {}
+
+impl<'a> FromSql<'a> for IntervalWrapper {
+    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        match *ty {
+            Type::INTERVAL => {
+                let str_value = std::str::from_utf8(raw)?;
+                Ok(IntervalWrapper {})
+            }
+            _ => Err("Unsupported type")?,
+        }
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::INTERVAL
+    }
+}
+
 
 #[tokio::test]
 async fn test_query_data_types() {}
