@@ -156,7 +156,9 @@ async fn process_request(
 
     let (tx, mut rx) = mpsc::channel(32);
 
-    tokio::spawn(async move {
+    let mut set = JoinSet::new();
+
+    set.spawn(async move {
         while let result = rx.recv().await {
             match result {
                 Some(printable_result) => {
@@ -165,9 +167,8 @@ async fn process_request(
                 None => {}
             }
         }
+        Ok(0u64)
     });
-
-    let mut set = JoinSet::new();
 
     for server in servers {
         let command_clone = raw_command.clone();
