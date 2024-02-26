@@ -19,6 +19,7 @@ use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
+use uuid::Uuid;
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::secrets::secrets_manager::SecretsManager;
@@ -297,6 +298,7 @@ async fn process_query(
         let mut row_vec: Vec<Cell> = Vec::new();
         row_vec.push(Cell::new(&*format!("{}", row_index)));
         for (col_index, column) in row.columns().iter().enumerate() {
+            // https://www.postgresql.org/docs/current/datatype.html
             let col_type: String = column.type_().to_string();
 
             // region Numeric Types
@@ -377,6 +379,11 @@ async fn process_query(
 
             // region UUID Type
             //https://www.postgresql.org/docs/current/datatype-uuid.html
+            if col_type == "uuid" {
+                let value: Uuid = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
             // endregion
 
             // TODO: more types

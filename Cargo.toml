@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.36", features = ["full"] }
-tokio-postgres = "0.7"
+tokio-postgres = { version = "0.7" , features = ["with-uuid-1"]}
 tokio-native-tls = "0.3"
 colored = "2.1"
 clap = { version = "4.5", features = ["derive"] }
@@ -18,6 +18,7 @@ prettytable-rs = "0.10"
 rust_decimal = { version = "1.34", features = ["db-postgres"] }
 rust_decimal_macros = "1.34"
 postgres_money = { version = "0.3", features = ["serde"] }
+uuid = "1.7"
 
 [dev-dependencies]
 assert_cmd = "2.0"
