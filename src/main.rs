@@ -8,19 +8,25 @@ mod secrets;
 use std::collections::HashMap;
 use std::fmt::{Debug};
 use tokio::task::JoinSet;
-use tokio_postgres::{NoTls, Error};
+use tokio_postgres::{NoTls, Error, types};
 use std::io::{self, BufRead};
 use std::process;
 use std::sync::{Arc, Mutex};
 use clap::Parser;
 use colored::Colorize;
+// use postgres_money::Money;
 use prettytable::{Cell, Row, Table};
+use rust_decimal::Decimal;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
+use tokio_postgres::types::{FromSql, Oid, Type};
+use uuid::Uuid;
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::secrets::secrets_manager::SecretsManager;
 use crate::settings::settings_manager::SettingsManager;
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
+
 
 use crate::version::{COPYRIGHT, COPYRIGHT_YEARS, LICENSE, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH};
 
@@ -74,6 +80,16 @@ async fn main() {
             }
             continue;
         }
+        if preprocessed_command.starts_with("show") {
+            let parts = preprocessed_command.split(" ");
+            let parts_vec: Vec<&str> = parts.collect();
+            println!("SHOW DATA TYPES <{}>", parts_vec[2]);
+            { // this block for mutex release
+                let mut settings_lock = settings.lock().unwrap();
+                settings_lock.insert("show_data_types".to_string(), parts_vec[2].to_string());
+            }
+            continue;
+        }
         history.push(command.clone());
         process_request(command, &inventory_manager, &settings).await;
     }
@@ -101,22 +117,22 @@ fn print_separator() {
 }
 
 fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
-    print!("Loading inventory file: <{}> ... ", inventory_file_name);
+    print!("Loading Inventory File: <{}> ... ", inventory_file_name);
     let mut inventory_manager = InventoryManager::new(&inventory_file_name);
-    inventory_manager.load_inventory_from_file().expect("TODO: panic message");
+    inventory_manager.load_inventory_from_file();
     print!("DONE\n");
     inventory_manager
 }
 
 fn load_settings_file(settings_file_name: &str) -> SettingsManager {
-    print!("Loading settings file: <{}> ... ", settings_file_name);
+    print!("Loading Settings File: <{}> ... ", settings_file_name);
     let settings_manager = SettingsManager::new(&settings_file_name);
     print!("DONE\n");
     settings_manager
 }
 
 fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
-    print!("Loading secrets file: <{secrets_file_name}> ... ");
+    print!("Loading Secrets File: <{secrets_file_name}> ... ");
     let secrets_manager = SecretsManager::new(&secrets_file_name);
     print!("DONE\n");
     secrets_manager
@@ -133,7 +149,7 @@ async fn process_request(
     let raw_command = get_raw_command_result.1;
 
     print_separator();
-    println!("Processing: [{}]", &raw_command.red());
+    println!("Processing: [{}]", &raw_command.green());
     print_separator();
 
     let servers = inventory_manager.get_servers(&raw_server_group);
@@ -207,6 +223,7 @@ async fn process_query(
     settings: Arc<Mutex<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
+    let mut show_data_types = false;
     { // this block for mutex release
         let settings_lock = settings.lock().unwrap();
         match settings_lock.get(&"db".to_string()) {
@@ -214,6 +231,18 @@ async fn process_query(
                 server.set_db_name(db_name.clone());
             }
             _ => {}
+        }
+        // TODO:
+        match settings_lock.get(&"show_data_types".to_string()) {
+            Some(show_dt) => {
+                if show_dt.eq("true") {
+                    show_data_types = true;
+                }
+                if show_dt.eq("false") {
+                    show_data_types = false;
+                }
+            }
+            _ => { show_data_types = true; }
         }
     }
 
@@ -259,24 +288,155 @@ async fn process_query(
     let mut row_vec: Vec<Cell> = Vec::new();
     row_vec.push(Cell::new(&""));
     for column in rows[0].columns().iter() {
-        row_vec.push(Cell::new(column.name()));
+        let mut column_header = String::new();
+        column_header.push_str(column.name());
+        if show_data_types {
+            column_header.push(':');
+            column_header.push_str(&*column.type_().to_string());
+        }
+        row_vec.push(Cell::new(&*column_header));
     }
     table.add_row(Row::new(row_vec));
     for (row_index, row) in rows.iter().enumerate() {
         let mut row_vec: Vec<Cell> = Vec::new();
         row_vec.push(Cell::new(&*format!("{}", row_index)));
         for (col_index, column) in row.columns().iter().enumerate() {
+            // https://www.postgresql.org/docs/current/datatype.html
             let col_type: String = column.type_().to_string();
-            if col_type == "varchar" || col_type == "text" {
+
+            // region Numeric Types
+            // https://www.postgresql.org/docs/current/datatype-numeric.html
+            if col_type == "int2" || col_type == "smallint" || col_type == "smallserial" {
+                let value: i16 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "int4" || col_type == "int" || col_type == "serial" {
+                let value: i32 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "int8" || col_type == "bigint" || col_type == "bigserial" {
+                let value: i64 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "decimal" || col_type == "numeric" {
+                let value: Decimal = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "real" || col_type == "float4" {
+                let value: f32 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "double precision" || col_type == "float8" {
+                let value: f64 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            // endregion
+
+            // region Monetary Types
+            // https://www.postgresql.org/docs/current/datatype-money.html
+            if col_type == "money" {
+                // TODO:
+                //let value: Money = row.get(col_index);
+                //row_vec.push(Cell::new(&*value.to_string()));
+                row_vec.push(Cell::new("?money?"));
+                continue;
+            }
+            // endregion
+
+            // region Character Types
+            // https://www.postgresql.org/docs/current/datatype-character.html
+            if col_type == "varchar" || col_type == "text" || col_type == "bpchar" || col_type == "character" || col_type == "char" {
+                // TODO: char type
+                // SELECT attalign FROM pg_attribute WHERE attrelid = 'test'::regclass;
                 let value: &str = row.get(col_index);
                 row_vec.push(Cell::new(value));
+                continue;
             }
-            if col_type == "int" || col_type == "serial" || col_type == "int4" {
-                let value: i32 = row.get(col_index);
-                row_vec.push(Cell::new(&*value.to_string()))
+            // endregion
+
+            // region Binary Data Types
+            // https://www.postgresql.org/docs/current/datatype-binary.html
+            if col_type == "bytea" {
+                // TODO:
+                row_vec.push(Cell::new("?bytea?"));
+                continue;
             }
+            // endregion
+
+            // region Date/Time Types
+            // https://www.postgresql.org/docs/current/datatype-datetime.html
+            if col_type == "timestamp" {
+                let value: NaiveDateTime = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "timestamptz" {
+                let value: DateTime<Local> = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "time" {
+                let value: NaiveTime = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "timetz" {
+                let value: DateTime<Local> = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                // TODO:
+                //row_vec.push(Cell::new("?timetz?"));
+                continue;
+            }
+            if col_type == "date" {
+                let value: NaiveDate = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "interval" {
+                // let value: Interval = row.get(col_index);
+                // row_vec.push(Cell::new(&*value.to_string()));
+                // TODO:
+                row_vec.push(Cell::new("?interval?"));
+                continue;
+            }
+            // endregion
+
+            // region Boolean Type
+            // https://www.postgresql.org/docs/current/datatype-boolean.html
+            if col_type == "boolean" || col_type == "bool" {
+                let value: bool = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            // endregion
+
+            // region UUID Type
+            //https://www.postgresql.org/docs/current/datatype-uuid.html
+            if col_type == "uuid" {
+                let value: Uuid = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            // endregion
+
+            // region Object Identifier Types
+            // https://www.postgresql.org/docs/current/datatype-oid.html
+            if col_type == "oid" {
+                // SELECT attrelid,attname,atttypid,attlen,attnum,attcacheoff,atttypmod,attndims,attbyval,attnotnull,atthasdef,atthasmissing,attisdropped,attislocal,attinhcount,attstattarget,attcollation,attacl,attoptions,attfdwoptions,attmissingval FROM pg_attribute WHERE attrelid = 'test'::regclass;
+                let value: Oid = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            // endregion
+
             // TODO: more types
-            // row_vec.push(Cell::new("")); //place holder for unknown types
+            row_vec.push(Cell::new("?")); //placeholder for unknown types
         }
         table.add_row(Row::new(row_vec));
     }
@@ -368,3 +528,6 @@ enum RequestType {
     Command,
     Unknown,
 }
+
+#[tokio::test]
+async fn test_query_data_types() {}
