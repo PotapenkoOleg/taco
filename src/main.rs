@@ -332,22 +332,51 @@ async fn process_query(
                 continue;
             }
             // endregion
+
             // region Monetary Types
             // https://www.postgresql.org/docs/current/datatype-money.html
             if col_type == "money" {
                 // TODO:
                 //let value: Money = row.get(col_index);
                 //row_vec.push(Cell::new(&*value.to_string()));
-                row_vec.push(Cell::new("?"));
+                row_vec.push(Cell::new("?money?"));
                 continue;
             }
             // endregion
+
             // region Character Types
+            // https://www.postgresql.org/docs/current/datatype-character.html
             if col_type == "varchar" || col_type == "text" || col_type == "bpchar" || col_type == "character" || col_type == "char" {
                 let value: &str = row.get(col_index);
                 row_vec.push(Cell::new(value));
                 continue;
             }
+            // endregion
+
+            // region Binary Data Types
+            // https://www.postgresql.org/docs/current/datatype-binary.html
+            if col_type == "bytea" {
+                // TODO:
+                row_vec.push(Cell::new("?bytea?"));
+                continue;
+            }
+            // endregion
+
+            // region Date/Time Types
+            // https://www.postgresql.org/docs/current/datatype-datetime.html
+            // endregion
+
+            // region Boolean Type
+            // https://www.postgresql.org/docs/current/datatype-boolean.html
+            if col_type == "boolean" || col_type == "bool" {
+                let value: bool = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            // endregion
+
+            // region UUID Type
+            //https://www.postgresql.org/docs/current/datatype-uuid.html
             // endregion
 
             // TODO: more types
