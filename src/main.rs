@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 use clap::Parser;
 use colored::Colorize;
 use prettytable::{Cell, Row, Table};
+use rust_decimal::Decimal;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 use crate::clap_parser::Args;
@@ -207,6 +208,7 @@ async fn process_query(
     settings: Arc<Mutex<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
+    let mut show_data_types = false;
     { // this block for mutex release
         let settings_lock = settings.lock().unwrap();
         match settings_lock.get(&"db".to_string()) {
@@ -214,6 +216,13 @@ async fn process_query(
                 server.set_db_name(db_name.clone());
             }
             _ => {}
+        }
+        // TODO:
+        match settings_lock.get(&"show_data_types".to_string()) {
+            Some(show_dt) => {
+                show_data_types = true;
+            }
+            _ => { show_data_types = true; }
         }
     }
 
@@ -259,7 +268,13 @@ async fn process_query(
     let mut row_vec: Vec<Cell> = Vec::new();
     row_vec.push(Cell::new(&""));
     for column in rows[0].columns().iter() {
-        row_vec.push(Cell::new(column.name()));
+        let mut column_header = String::new();
+        column_header.push_str(column.name());
+        if show_data_types {
+            column_header.push(':');
+            column_header.push_str(&*column.type_().to_string());
+        }
+        row_vec.push(Cell::new(&*column_header));
     }
     table.add_row(Row::new(row_vec));
     for (row_index, row) in rows.iter().enumerate() {
@@ -270,13 +285,44 @@ async fn process_query(
             if col_type == "varchar" || col_type == "text" {
                 let value: &str = row.get(col_index);
                 row_vec.push(Cell::new(value));
+                continue;
             }
-            if col_type == "int" || col_type == "serial" || col_type == "int4" {
+            // region Numeric Types
+            // https://www.postgresql.org/docs/current/datatype-numeric.html
+            if col_type == "int2" || col_type == "smallint" || col_type == "smallserial" {
+                let value: i16 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "int4" || col_type == "int" || col_type == "serial" {
                 let value: i32 = row.get(col_index);
-                row_vec.push(Cell::new(&*value.to_string()))
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
             }
+            if col_type == "int8" || col_type == "bigint" || col_type == "bigserial" {
+                let value: i64 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "decimal" || col_type == "numeric" {
+                let value: Decimal = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "real" || col_type == "float4" {
+                let value: f32 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "double precision" || col_type == "float8" {
+                let value: f64 = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            // endregion
+
             // TODO: more types
-            // row_vec.push(Cell::new("")); //place holder for unknown types
+            row_vec.push(Cell::new("?")); //place holder for unknown types
         }
         table.add_row(Row::new(row_vec));
     }
@@ -368,3 +414,7 @@ enum RequestType {
     Command,
     Unknown,
 }
+
+
+#[tokio::test]
+async fn test_query_data_types() {}
