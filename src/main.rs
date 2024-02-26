@@ -14,11 +14,12 @@ use std::process;
 use std::sync::{Arc, Mutex};
 use clap::Parser;
 use colored::Colorize;
-use postgres_money::Money;
+// use postgres_money::Money;
 use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
+use tokio_postgres::types::Oid;
 use uuid::Uuid;
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
@@ -349,6 +350,8 @@ async fn process_query(
             // region Character Types
             // https://www.postgresql.org/docs/current/datatype-character.html
             if col_type == "varchar" || col_type == "text" || col_type == "bpchar" || col_type == "character" || col_type == "char" {
+                // TODO: char type
+                // SELECT attalign FROM pg_attribute WHERE attrelid = 'test'::regclass;
                 let value: &str = row.get(col_index);
                 row_vec.push(Cell::new(value));
                 continue;
@@ -381,6 +384,16 @@ async fn process_query(
             //https://www.postgresql.org/docs/current/datatype-uuid.html
             if col_type == "uuid" {
                 let value: Uuid = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            // endregion
+
+            // region Object Identifier Types
+            // https://www.postgresql.org/docs/current/datatype-oid.html
+            if col_type == "oid" {
+                // SELECT attrelid,attname,atttypid,attlen,attnum,attcacheoff,atttypmod,attndims,attbyval,attnotnull,atthasdef,atthasmissing,attisdropped,attislocal,attinhcount,attstattarget,attcollation,attacl,attoptions,attfdwoptions,attmissingval FROM pg_attribute WHERE attrelid = 'test'::regclass;
+                let value: Oid = row.get(col_index);
                 row_vec.push(Cell::new(&*value.to_string()));
                 continue;
             }
