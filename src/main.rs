@@ -8,7 +8,7 @@ mod secrets;
 use std::collections::HashMap;
 use std::fmt::{Debug};
 use tokio::task::JoinSet;
-use tokio_postgres::{NoTls, Error};
+use tokio_postgres::{NoTls, Error, types};
 use std::io::{self, BufRead};
 use std::process;
 use std::sync::{Arc, Mutex};
@@ -19,12 +19,14 @@ use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use tokio_postgres::types::Oid;
+use tokio_postgres::types::{FromSql, Oid, Type};
 use uuid::Uuid;
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::secrets::secrets_manager::SecretsManager;
 use crate::settings::settings_manager::SettingsManager;
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
+
 
 use crate::version::{COPYRIGHT, COPYRIGHT_YEARS, LICENSE, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH};
 
@@ -147,7 +149,7 @@ async fn process_request(
     let raw_command = get_raw_command_result.1;
 
     print_separator();
-    println!("Processing: [{}]", &raw_command.red());
+    println!("Processing: [{}]", &raw_command.green());
     print_separator();
 
     let servers = inventory_manager.get_servers(&raw_server_group);
@@ -369,6 +371,40 @@ async fn process_query(
 
             // region Date/Time Types
             // https://www.postgresql.org/docs/current/datatype-datetime.html
+            if col_type == "timestamp" {
+                let value: NaiveDateTime = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "timestamptz" {
+                let value: DateTime<Local> = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "time" {
+                let value: NaiveTime = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "timetz" {
+                let value: DateTime<Local> = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                // TODO:
+                //row_vec.push(Cell::new("?timetz?"));
+                continue;
+            }
+            if col_type == "date" {
+                let value: NaiveDate = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
+            if col_type == "interval" {
+                // let value: Interval = row.get(col_index);
+                // row_vec.push(Cell::new(&*value.to_string()));
+                // TODO:
+                row_vec.push(Cell::new("?interval?"));
+                continue;
+            }
             // endregion
 
             // region Boolean Type
@@ -492,7 +528,6 @@ enum RequestType {
     Command,
     Unknown,
 }
-
 
 #[tokio::test]
 async fn test_query_data_types() {}
