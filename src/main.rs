@@ -14,6 +14,7 @@ use std::process;
 use std::sync::{Arc, Mutex};
 use clap::Parser;
 use colored::Colorize;
+use postgres_money::Money;
 use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
 use tokio::sync::mpsc;
@@ -72,6 +73,16 @@ async fn main() {
             { // this block for mutex release
                 let mut settings_lock = settings.lock().unwrap();
                 settings_lock.insert("db".to_string(), parts_vec[1].to_string());
+            }
+            continue;
+        }
+        if preprocessed_command.starts_with("show") {
+            let parts = preprocessed_command.split(" ");
+            let parts_vec: Vec<&str> = parts.collect();
+            println!("SHOW DATA TYPES <{}>", parts_vec[2]);
+            { // this block for mutex release
+                let mut settings_lock = settings.lock().unwrap();
+                settings_lock.insert("show_data_types".to_string(), parts_vec[2].to_string());
             }
             continue;
         }
@@ -220,7 +231,12 @@ async fn process_query(
         // TODO:
         match settings_lock.get(&"show_data_types".to_string()) {
             Some(show_dt) => {
-                show_data_types = true;
+                if show_dt.eq("true") {
+                    show_data_types = true;
+                }
+                if show_dt.eq("false") {
+                    show_data_types = false;
+                }
             }
             _ => { show_data_types = true; }
         }
@@ -282,11 +298,7 @@ async fn process_query(
         row_vec.push(Cell::new(&*format!("{}", row_index)));
         for (col_index, column) in row.columns().iter().enumerate() {
             let col_type: String = column.type_().to_string();
-            if col_type == "varchar" || col_type == "text" {
-                let value: &str = row.get(col_index);
-                row_vec.push(Cell::new(value));
-                continue;
-            }
+
             // region Numeric Types
             // https://www.postgresql.org/docs/current/datatype-numeric.html
             if col_type == "int2" || col_type == "smallint" || col_type == "smallserial" {
@@ -320,9 +332,26 @@ async fn process_query(
                 continue;
             }
             // endregion
+            // region Monetary Types
+            // https://www.postgresql.org/docs/current/datatype-money.html
+            if col_type == "money" {
+                // TODO:
+                //let value: Money = row.get(col_index);
+                //row_vec.push(Cell::new(&*value.to_string()));
+                row_vec.push(Cell::new("?"));
+                continue;
+            }
+            // endregion
+            // region Character Types
+            if col_type == "varchar" || col_type == "text" || col_type == "bpchar" || col_type == "character" || col_type == "char" {
+                let value: &str = row.get(col_index);
+                row_vec.push(Cell::new(value));
+                continue;
+            }
+            // endregion
 
             // TODO: more types
-            row_vec.push(Cell::new("?")); //place holder for unknown types
+            row_vec.push(Cell::new("?")); //placeholder for unknown types
         }
         table.add_row(Row::new(row_vec));
     }
