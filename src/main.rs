@@ -537,6 +537,9 @@ impl<'a> FromSql<'a> for IntervalWrapper {
         match *ty {
             Type::INTERVAL => {
                 let str_value = std::str::from_utf8(raw)?;
+                // Months: A 32-bit integer representing the number of months in the interval. This part accounts for the year and month components of the interval, where each year is considered to be 12 months.
+                // Days: A 32-bit integer representing the number of days in the interval. This part is separate from the months and directly represents the days component of the interval.
+                // Microseconds: A 64-bit integer representing the time of day component in microseconds. This allows for a precise representation of hours, minutes, seconds, and even fractions of a second within the interval.
                 Ok(IntervalWrapper {})
             }
             _ => Err("Unsupported type")?,
