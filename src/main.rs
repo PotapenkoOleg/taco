@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug};
 use tokio::task::JoinSet;
 use tokio_postgres::{NoTls, Error, types};
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Write};
 use std::process;
 use std::sync::{Arc, Mutex};
 use clap::Parser;
@@ -42,16 +42,34 @@ async fn main() {
     print_separator();
     let mut history: Vec<String> = Vec::new();
     let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
-    let stdin = io::stdin();
-    for line in stdin.lock().lines() {
-        let command = line.unwrap();
+    { // this block for mutex release
+        let mut settings_lock = settings.lock().unwrap();
+        settings_lock.insert("db".to_string(), "postgres".to_string());
+    }
+    loop {
+        let mut current_db: Option<String> = None;
+        { // this block for mutex release
+            let settings_lock = settings.lock().unwrap();
+            match settings_lock.get(&"db".to_string()) {
+                Some(db_name) => {
+                    current_db = Some(db_name.clone());
+                }
+                _ => {}
+            }
+        }
+        let _ = io::stdout().write(format!("[{}] > ", current_db.unwrap_or("".to_string())).as_ref());
+        let _ = io::stdout().flush();
+        let mut command = String::new();
+        io::stdin().read_line(&mut command).unwrap();
         let preprocessed_command = command.to_lowercase().trim().to_string();
         if preprocessed_command.cmp(&"exit".to_string()).is_eq() {
+            println!("{}", "BYE-BYE!".yellow());
             process::exit(0);
         }
         if preprocessed_command.cmp(&"history".to_string()).is_eq() {
-            println!("HISTORY");
-            for (index, value) in history.iter().enumerate() {
+            println!("{}", "HISTORY".yellow());
+            for (index, value) in history.iter_mut().enumerate() {
+                trim_newline(value);
                 println!("{}: {}", index, value)
             }
             continue;
@@ -73,7 +91,7 @@ async fn main() {
         if preprocessed_command.starts_with("use") {
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
-            println!("USING DB <{}>", parts_vec[1]);
+            println!("{}", format!("USING DB <{}>", parts_vec[1]).yellow());
             { // this block for mutex release
                 let mut settings_lock = settings.lock().unwrap();
                 settings_lock.insert("db".to_string(), parts_vec[1].to_string());
@@ -83,15 +101,28 @@ async fn main() {
         if preprocessed_command.starts_with("show") {
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
-            println!("SHOW DATA TYPES <{}>", parts_vec[2]);
+            println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[2]).yellow());
             { // this block for mutex release
                 let mut settings_lock = settings.lock().unwrap();
                 settings_lock.insert("show_data_types".to_string(), parts_vec[2].to_string());
             }
             continue;
         }
-        history.push(command.clone());
-        process_request(command, &inventory_manager, &settings).await;
+        if preprocessed_command.is_empty() {
+            println!("{}", "UNKNOWN REQUEST TYPE".yellow());
+            continue;
+        }
+        let request_type = get_request_type(&command);
+        match &request_type {
+            RequestType::Unknown => {
+                println!("{}", "UNKNOWN REQUEST TYPE".yellow());
+                continue;
+            }
+            _ => {
+                history.push(command.clone());
+                process_request(command, request_type, &inventory_manager, &settings).await;
+            }
+        }
     }
 }
 
@@ -138,12 +169,21 @@ fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
     secrets_manager
 }
 
+fn trim_newline(s: &mut String) {
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
+}
+
 async fn process_request(
     command: String,
+    request_type: RequestType,
     inventory_manager: &InventoryManager,
     settings: &Arc<Mutex<HashMap<String, String>>>,
 ) {
-    let request_type = get_request_type(&command);
     let get_raw_command_result = get_raw_command(&command, &request_type);
     let raw_server_group = get_raw_command_result.0;
     let raw_command = get_raw_command_result.1;
@@ -158,18 +198,6 @@ async fn process_request(
 
     let mut set = JoinSet::new();
 
-    set.spawn(async move {
-        while let result = rx.recv().await {
-            match result {
-                Some(printable_result) => {
-                    print!("{}", printable_result);
-                }
-                None => {}
-            }
-        }
-        Ok(0u64)
-    });
-
     for server in servers {
         let command_clone = raw_command.clone();
         let request_type_clone = request_type.clone();
@@ -183,6 +211,18 @@ async fn process_request(
             }
         });
     }
+
+    tokio::spawn(async move {
+        while let result = rx.recv().await {
+            match result {
+                Some(printable_result) => {
+                    print!("{}", printable_result);
+                }
+                None => {}
+            }
+        };
+        Ok::<u64, Error>(0u64)
+    });
 
     let mut total: u64 = 0;
     while let Some(res) = set.join_next().await {
