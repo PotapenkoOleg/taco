@@ -84,8 +84,15 @@ async fn main() {
             continue;
         }
         if preprocessed_command.starts_with("batch") {
+            let parts = preprocessed_command.split(" ");
+            let parts_vec: Vec<&str> = parts.collect();
+            if parts_vec[1].eq("start") {
+                println!("{}", "BATCH STARTED".yellow());
+            }
+            if parts_vec[1].eq("end") {
+                println!("{}", "BATCH ENDED".yellow());
+            }
             // TODO:
-            println!("{}", "BATCH STARTED".yellow());
             continue;
         }
         if preprocessed_command.starts_with("use") {
@@ -109,13 +116,13 @@ async fn main() {
             continue;
         }
         if preprocessed_command.is_empty() {
-            println!("{}", "UNKNOWN REQUEST TYPE".yellow());
+            println!("{}", "UNKNOWN REQUEST TYPE".red());
             continue;
         }
         let request_type = get_request_type(&command);
         match &request_type {
             RequestType::Unknown => {
-                println!("{}", "UNKNOWN REQUEST TYPE".yellow());
+                println!("{}", "UNKNOWN REQUEST TYPE".red());
                 continue;
             }
             _ => {
@@ -229,7 +236,7 @@ async fn process_request(
         total += res.unwrap().unwrap(); // TODO
     }
     print_separator();
-    println!("Total rows: {}", total);
+    println!("{}", format!("Total rows: {}", total).green());
     print_separator();
 }
 
@@ -273,7 +280,6 @@ async fn process_query(
             }
             _ => {}
         }
-        // TODO:
         match settings_lock.get(&"show_data_types".to_string()) {
             Some(show_dt) => {
                 if show_dt.eq("true") {
@@ -294,7 +300,7 @@ async fn process_query(
         result.push_str(&*connect_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
-            eprintln!("{}", result);
+            eprintln!("{}", result.red());
         }
         return Ok(0u64);
     }
@@ -302,7 +308,7 @@ async fn process_query(
     let (client, connection) = connect_result.unwrap();
     tokio::spawn(async move {
         if connection.await.as_ref().is_err() {
-            eprintln!("ERROR OPEN CONNECTION");
+            eprintln!("{}", "ERROR OPEN CONNECTION".red());
         }
     });
 
@@ -313,7 +319,7 @@ async fn process_query(
         result.push_str(&*rows_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
-            eprintln!("{}", result);
+            eprintln!("{}", result.red());
         }
         return Ok(0u64);
     }
@@ -486,7 +492,7 @@ async fn process_query(
     result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
     result.push_str(&format!("{}\n", table.to_string()));
     if tx.send(result).await.as_ref().is_err() {
-        eprintln!("ERROR SENDING RESULT TO PRINTER THREAD");
+        eprintln!("{}", "ERROR SENDING RESULT TO PRINTER THREAD".red());
     }
 
     Ok(rows.len() as u64)
@@ -515,7 +521,7 @@ async fn process_command(
         result.push_str(&*connect_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
-            eprintln!("{}", result);
+            eprintln!("{}", result.red());
         }
         return Ok(0u64);
     }
@@ -523,7 +529,7 @@ async fn process_command(
     let (client, connection) = connect_result.unwrap();
     tokio::spawn(async move {
         if connection.await.as_ref().is_err() {
-            eprintln!("ERROR OPEN CONNECTION");
+            eprintln!("{}", "ERROR OPEN CONNECTION".red());
         }
     });
 
@@ -535,7 +541,7 @@ async fn process_command(
         result.push_str(&*statement_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
-            eprintln!("{}", result);
+            eprintln!("{}", result.red());
         }
         return Ok(0u64);
     }
@@ -547,7 +553,7 @@ async fn process_command(
         result.push_str(&*rows_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
-            eprintln!("{}", result);
+            eprintln!("{}", result.red());
         }
         return Ok(0u64);
     }
@@ -557,7 +563,7 @@ async fn process_command(
     let mut result = String::new();
     result.push_str(&format!("\n[{}:{}]: rows {}\n", &server.host, &server.db_name.unwrap(), rows));
     if tx.send(result).await.as_ref().is_err() {
-        eprintln!("ERROR SENDING RESULT TO PRINTER THREAD");
+        eprintln!("{}", "ERROR SENDING RESULT TO PRINTER THREAD".red());
     }
 
     Ok(rows)
