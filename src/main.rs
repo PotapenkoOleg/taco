@@ -27,7 +27,7 @@ use crate::settings::settings_manager::SettingsManager;
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
 
 
-use crate::version::{COPYRIGHT, COPYRIGHT_YEARS, LICENSE, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH};
+use crate::version::{COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH};
 
 #[tokio::main]
 async fn main() {
@@ -143,6 +143,7 @@ fn print_banner() {
              )
     );
     println!("License: {}", LICENSE);
+    println!("Link: {}", LINK);
     println!("Copyright © {}. {}", COPYRIGHT, COPYRIGHT_YEARS);
 }
 
