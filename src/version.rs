@@ -6,3 +6,4 @@ pub const VERSION_ALIAS: &str = "Boston";
 pub const COPYRIGHT: &str = "Oleg Potapenko";
 pub const COPYRIGHT_YEARS: &str = "2024";
 pub const LICENSE: &str = "MIT";
+pub const LINK: &str = "https://github.com/PotapenkoOleg/taco";
