@@ -8,13 +8,12 @@ mod secrets;
 use std::collections::HashMap;
 use std::fmt::{Debug};
 use tokio::task::JoinSet;
-use tokio_postgres::{NoTls, Error, types};
-use std::io::{self, BufRead, Write};
+use tokio_postgres::{NoTls, Error};
+use std::io::{self, Write};
 use std::process;
 use std::sync::{Arc, Mutex};
 use clap::Parser;
 use colored::Colorize;
-// use postgres_money::Money;
 use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
 use tokio::sync::mpsc;
@@ -37,8 +36,8 @@ async fn main() {
     print_separator();
     let args = Args::parse();
     let inventory_manager = load_inventory_file(&args.inventory);
-    let settings_manager = load_settings_file(&args.settings);
-    let secrets_manager = load_secrets_file(&args.secrets);
+    let _settings_manager = load_settings_file(&args.settings);
+    let _secrets_manager = load_secrets_file(&args.secrets);
     print_separator();
     let mut history: Vec<String> = Vec::new();
     let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
@@ -147,11 +146,14 @@ fn print_banner() {
     println!("Copyright © {}. {}", COPYRIGHT, COPYRIGHT_YEARS);
 }
 
-fn print_separator() {
+fn build_separator() -> String {
     let template = "*";
     let n = 80;
-    let repeated_string = template.repeat(n);
-    println!("{}", repeated_string);
+    template.repeat(n)
+}
+
+fn print_separator() {
+    println!("{}", build_separator());
 }
 
 fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
@@ -235,9 +237,14 @@ async fn process_request(
     while let Some(res) = set.join_next().await {
         total += res.unwrap().unwrap(); // TODO
     }
-    print_separator();
-    println!("{}", format!("Total rows: {}", total).green());
-    print_separator();
+
+    let mut result = String::new();
+    result.push_str(&format!("\n{}\n", build_separator()));
+    result.push_str(&format!("Total rows: {}", total));
+    result.push_str(&format!("\n{}\n", build_separator()));
+    if tx.send(result).await.as_ref().is_err() {
+        eprintln!("{}", "ERROR SENDING RESULT TO PRINTER THREAD".red());
+    }
 }
 
 fn get_request_type(command: &String) -> RequestType {
@@ -582,7 +589,7 @@ impl<'a> FromSql<'a> for IntervalWrapper {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         match *ty {
             Type::INTERVAL => {
-                let str_value = std::str::from_utf8(raw)?;
+                let _str_value = std::str::from_utf8(raw)?;
                 // Months: A 32-bit integer representing the number of months in the interval. This part accounts for the year and month components of the interval, where each year is considered to be 12 months.
                 // Days: A 32-bit integer representing the number of days in the interval. This part is separate from the months and directly represents the days component of the interval.
                 // Microseconds: A 64-bit integer representing the time of day component in microseconds. This allows for a precise representation of hours, minutes, seconds, and even fractions of a second within the interval.

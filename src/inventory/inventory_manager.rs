@@ -5,7 +5,6 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use serde::{Serialize, Deserialize};
-use serde::de::Error;
 
 pub struct InventoryManager {
     inventory_file_name: String,
@@ -19,7 +18,7 @@ impl InventoryManager {
 
     pub fn load_inventory_from_file(&mut self) {
         let path = Path::new(&self.inventory_file_name);
-        let mut input_result = File::open(&path);
+        let input_result = File::open(&path);
         if input_result.as_ref().is_err() {
             println!("ERROR OPENING INVENTORY FILE");
             process::exit(1);
@@ -39,7 +38,7 @@ impl InventoryManager {
         self.deployment = Some(deserialize_result.unwrap());
     }
 
-    pub fn save_inventory_to_file(&self, deployment: &Option<Deployment>, file_name: Option<String>) {
+    pub fn _save_inventory_to_file(&self, deployment: &Option<Deployment>, file_name: Option<String>) {
         let inventory_file_name = match file_name {
             Some(name) => { name }
             None => { self.inventory_file_name.clone() }
@@ -191,7 +190,7 @@ impl Server {
     pub fn set_db_name(&mut self, db_name: String) {
         self.db_name = Some(db_name);
     }
-    pub fn get_db_name(&self) -> Option<String> {
+    pub fn _get_db_name(&self) -> Option<String> {
         match &self.db_name {
             Some(db_name) => { Some(db_name.clone()) }
             None => { None }
