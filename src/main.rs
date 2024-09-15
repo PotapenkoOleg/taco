@@ -202,7 +202,12 @@ async fn process_request(
     println!("Processing: [{}]", &raw_command.green());
     print_separator();
 
-    let servers = inventory_manager.get_servers(&raw_server_group);
+    let servers_wrapped = inventory_manager.get_servers(&raw_server_group);
+    if servers_wrapped.is_err() {
+        eprintln!("INVALID SERVER GROUP NAME");
+        return;
+    }
+    let servers = servers_wrapped.unwrap();
 
     let (tx, mut rx) = mpsc::channel(32);
 

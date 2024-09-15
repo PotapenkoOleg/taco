@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::{fmt, process};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Error, ErrorKind, Read, Write};
 use std::path::Path;
 use serde::{Serialize, Deserialize};
 
@@ -73,7 +73,7 @@ impl InventoryManager {
         }
     }
 
-    pub fn get_servers(&self, server_group_name: &String) -> HashSet<Server> {
+    pub fn get_servers(&self, server_group_name: &String) -> Result<HashSet<Server>, Error> {
         match &self.deployment {
             Some(deployment) => {
                 let environments: Vec<&Environment> = deployment.environments.iter()
@@ -98,10 +98,10 @@ impl InventoryManager {
                     collect_servers_in_server_group(&mut servers, server_group_name, default_cluster, &server_groups);
                 }
 
-                return servers;
+                return Ok(servers);
             }
             None => {
-                return HashSet::new();
+                return Err(Error::new(ErrorKind::NotFound, "INVALID SERVER GROUP NAME"));
             }
         }
     }
