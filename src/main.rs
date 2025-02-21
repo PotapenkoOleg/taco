@@ -2,32 +2,30 @@ mod version;
 
 mod clap_parser;
 mod inventory;
-mod settings;
-mod secrets;
 
-use std::collections::HashMap;
-use std::fmt::{Debug};
-use tokio::task::JoinSet;
-use tokio_postgres::{NoTls, Error};
-use std::io::{self, Write};
-use std::process;
-use std::sync::{Arc, Mutex};
+use crate::clap_parser::Args;
+use crate::inventory::inventory_manager::{InventoryManager, Server};
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use clap::Parser;
 use colored::Colorize;
 use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
+use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::io::{self, Write};
+use std::process;
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
+use tokio::task::JoinSet;
 use tokio_postgres::types::{FromSql, Oid, Type};
+use tokio_postgres::{Error, NoTls};
 use uuid::Uuid;
-use crate::clap_parser::Args;
-use crate::inventory::inventory_manager::{InventoryManager, Server};
-use crate::secrets::secrets_manager::SecretsManager;
-use crate::settings::settings_manager::SettingsManager;
-use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
 
-
-use crate::version::{COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH};
+use crate::version::{
+    COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
+    VERSION_MINOR, VERSION_PATCH,
+};
 
 #[tokio::main]
 async fn main() {
@@ -35,19 +33,19 @@ async fn main() {
     print_banner();
     print_separator();
     let args = Args::parse();
-    let inventory_manager = load_inventory_file(&args.inventory);
-    let _settings_manager = load_settings_file(&args.settings);
-    let _secrets_manager = load_secrets_file(&args.secrets);
+    let inventory_manager = load_inventory_file(&args.inventory).await;
     print_separator();
     let mut history: Vec<String> = Vec::new();
     let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
-    { // this block for mutex release
+    {
+        // this block for mutex release
         let mut settings_lock = settings.lock().unwrap();
         settings_lock.insert("db".to_string(), "postgres".to_string());
     }
     loop {
         let mut current_db: Option<String> = None;
-        { // this block for mutex release
+        {
+            // this block for mutex release
             let settings_lock = settings.lock().unwrap();
             match settings_lock.get(&"db".to_string()) {
                 Some(db_name) => {
@@ -56,7 +54,8 @@ async fn main() {
                 _ => {}
             }
         }
-        let _ = io::stdout().write(format!("[{}] > ", current_db.unwrap_or("".to_string())).as_ref());
+        let _ =
+            io::stdout().write(format!("[{}] > ", current_db.unwrap_or("".to_string())).as_ref());
         let _ = io::stdout().flush();
         let mut command = String::new();
         io::stdin().read_line(&mut command).unwrap();
@@ -98,7 +97,8 @@ async fn main() {
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
             println!("{}", format!("USING DB <{}>", parts_vec[1]).yellow());
-            { // this block for mutex release
+            {
+                // this block for mutex release
                 let mut settings_lock = settings.lock().unwrap();
                 settings_lock.insert("db".to_string(), parts_vec[1].to_string());
             }
@@ -108,7 +108,8 @@ async fn main() {
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
             println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[2]).yellow());
-            { // this block for mutex release
+            {
+                // this block for mutex release
                 let mut settings_lock = settings.lock().unwrap();
                 settings_lock.insert("show_data_types".to_string(), parts_vec[2].to_string());
             }
@@ -126,21 +127,27 @@ async fn main() {
             }
             _ => {
                 history.push(command.clone());
-                process_request(command, request_type, &inventory_manager, &settings).await;
+                let get_raw_command_result = get_raw_command(&command, &request_type);
+                let raw_server_group = get_raw_command_result.0;
+                let raw_command = get_raw_command_result.1;
+                let servers = inventory_manager.get_servers(&raw_server_group);
+                let settings_clone = settings.clone();
+                let handle = tokio::spawn(async move {
+                    process_request(raw_command, request_type, servers, settings_clone).await
+                });
+                handle.await.unwrap();
             }
         }
     }
 }
 
 fn print_banner() {
-    println!("{}",
-             format!("{} version {}.{}.{} ({})",
-                     PRODUCT_NAME,
-                     VERSION_MAJOR,
-                     VERSION_MINOR,
-                     VERSION_PATCH,
-                     VERSION_ALIAS
-             )
+    println!(
+        "{}",
+        format!(
+            "{} version {}.{}.{} ({})",
+            PRODUCT_NAME, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_ALIAS
+        )
     );
     println!("License: {}", LICENSE);
     println!("Link: {}", LINK);
@@ -157,26 +164,12 @@ fn print_separator() {
     println!("{}", build_separator());
 }
 
-fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
+async fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
     print!("Loading Inventory File: <{}> ... ", inventory_file_name);
     let mut inventory_manager = InventoryManager::new(&inventory_file_name);
-    inventory_manager.load_inventory_from_file();
+    inventory_manager.load_inventory_from_file().await;
     print!("DONE\n");
     inventory_manager
-}
-
-fn load_settings_file(settings_file_name: &str) -> SettingsManager {
-    print!("Loading Settings File: <{}> ... ", settings_file_name);
-    let settings_manager = SettingsManager::new(&settings_file_name);
-    print!("DONE\n");
-    settings_manager
-}
-
-fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
-    print!("Loading Secrets File: <{secrets_file_name}> ... ");
-    let secrets_manager = SecretsManager::new(&secrets_file_name);
-    print!("DONE\n");
-    secrets_manager
 }
 
 fn trim_newline(s: &mut String) {
@@ -189,20 +182,16 @@ fn trim_newline(s: &mut String) {
 }
 
 async fn process_request(
-    command: String,
+    //command: String,
+    raw_command: String,
     request_type: RequestType,
-    inventory_manager: &InventoryManager,
-    settings: &Arc<Mutex<HashMap<String, String>>>,
+    servers: HashSet<Server>,
+    // inventory_manager: &InventoryManager,
+    settings: Arc<Mutex<HashMap<String, String>>>,
 ) {
-    let get_raw_command_result = get_raw_command(&command, &request_type);
-    let raw_server_group = get_raw_command_result.0;
-    let raw_command = get_raw_command_result.1;
-
     print_separator();
     println!("Processing: [{}]", &raw_command.green());
     print_separator();
-
-    let servers = inventory_manager.get_servers(&raw_server_group);
 
     let (tx, mut rx) = mpsc::channel(32);
 
@@ -215,9 +204,13 @@ async fn process_request(
         let tx_clone = tx.clone();
         set.spawn(async move {
             match request_type_clone {
-                RequestType::Query => { process_query(server, command_clone, settings_clone, tx_clone).await }
-                RequestType::Command => { process_command(server, command_clone, settings_clone, tx_clone).await }
-                _ => { Ok(0u64) }
+                RequestType::Query => {
+                    process_query(server, command_clone, settings_clone, tx_clone).await
+                }
+                RequestType::Command => {
+                    process_command(server, command_clone, settings_clone, tx_clone).await
+                }
+                _ => Ok(0u64),
             }
         });
     }
@@ -230,7 +223,7 @@ async fn process_request(
                 }
                 None => {}
             }
-        };
+        }
         Ok::<u64, Error>(0u64)
     });
 
@@ -262,11 +255,12 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
     let request_separator = match request_type {
         RequestType::Query => "?".to_string(),
         RequestType::Command => "!".to_string(),
-        _ => { "".to_string() }
+        _ => "".to_string(),
     };
 
     let parts = command.split(&request_separator);
-    let mut raw_parts: Vec<String> = parts.into_iter()
+    let mut raw_parts: Vec<String> = parts
+        .into_iter()
         .map(|x| x.to_string().trim().to_lowercase())
         .collect();
 
@@ -280,7 +274,8 @@ async fn process_query(
     tx: Sender<String>,
 ) -> Result<u64, Error> {
     let mut show_data_types = false;
-    { // this block for mutex release
+    {
+        // this block for mutex release
         let settings_lock = settings.lock().unwrap();
         match settings_lock.get(&"db".to_string()) {
             Some(db_name) => {
@@ -297,14 +292,20 @@ async fn process_query(
                     show_data_types = false;
                 }
             }
-            _ => { show_data_types = true; }
+            _ => {
+                show_data_types = true;
+            }
         }
     }
 
     let connect_result = tokio_postgres::connect(&server.to_string(), NoTls).await;
     if connect_result.as_ref().is_err() {
         let mut result = String::new();
-        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&format!(
+            "\n[{}:{}] \n",
+            &server.host,
+            &server.db_name.unwrap()
+        ));
         result.push_str(&*connect_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
@@ -323,7 +324,11 @@ async fn process_query(
     let rows_result = client.query(&query, &[]).await;
     if rows_result.as_ref().is_err() {
         let mut result = String::new();
-        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&format!(
+            "\n[{}:{}] \n",
+            &server.host,
+            &server.db_name.unwrap()
+        ));
         result.push_str(&*rows_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
@@ -406,7 +411,12 @@ async fn process_query(
 
             // region Character Types
             // https://www.postgresql.org/docs/current/datatype-character.html
-            if col_type == "varchar" || col_type == "text" || col_type == "bpchar" || col_type == "character" || col_type == "char" {
+            if col_type == "varchar"
+                || col_type == "text"
+                || col_type == "bpchar"
+                || col_type == "character"
+                || col_type == "char"
+            {
                 // TODO: char type
                 // SELECT attalign FROM pg_attribute WHERE attrelid = 'test'::regclass;
                 let value: &str = row.get(col_index);
@@ -497,7 +507,11 @@ async fn process_query(
     }
 
     let mut result = String::new();
-    result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+    result.push_str(&format!(
+        "\n[{}:{}] \n",
+        &server.host,
+        &server.db_name.unwrap()
+    ));
     result.push_str(&format!("{}\n", table.to_string()));
     if tx.send(result).await.as_ref().is_err() {
         eprintln!("{}", "ERROR SENDING RESULT TO PRINTER THREAD".red());
@@ -512,7 +526,8 @@ async fn process_command(
     settings: Arc<Mutex<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
-    { // this block for mutex release
+    {
+        // this block for mutex release
         let settings_lock = settings.lock().unwrap();
         match settings_lock.get(&"db".to_string()) {
             Some(db_name) => {
@@ -525,7 +540,11 @@ async fn process_command(
     let connect_result = tokio_postgres::connect(&server.to_string(), NoTls).await;
     if connect_result.as_ref().is_err() {
         let mut result = String::new();
-        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&format!(
+            "\n[{}:{}] \n",
+            &server.host,
+            &server.db_name.unwrap()
+        ));
         result.push_str(&*connect_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
@@ -545,7 +564,11 @@ async fn process_command(
     let statement_result = client.prepare(query).await;
     if statement_result.as_ref().is_err() {
         let mut result = String::new();
-        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&format!(
+            "\n[{}:{}] \n",
+            &server.host,
+            &server.db_name.unwrap()
+        ));
         result.push_str(&*statement_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
@@ -557,7 +580,11 @@ async fn process_command(
     let rows_result = client.execute(&statement, &[]).await;
     if rows_result.as_ref().is_err() {
         let mut result = String::new();
-        result.push_str(&format!("\n[{}:{}] \n", &server.host, &server.db_name.unwrap()));
+        result.push_str(&format!(
+            "\n[{}:{}] \n",
+            &server.host,
+            &server.db_name.unwrap()
+        ));
         result.push_str(&*rows_result.as_ref().err().unwrap().to_string());
         result.push_str(&*"\n".to_string());
         if tx.send(result.clone()).await.is_err() {
@@ -569,7 +596,12 @@ async fn process_command(
     let rows = rows_result.unwrap();
 
     let mut result = String::new();
-    result.push_str(&format!("\n[{}:{}]: rows {}\n", &server.host, &server.db_name.unwrap(), rows));
+    result.push_str(&format!(
+        "\n[{}:{}]: rows {}\n",
+        &server.host,
+        &server.db_name.unwrap(),
+        rows
+    ));
     if tx.send(result).await.as_ref().is_err() {
         eprintln!("{}", "ERROR SENDING RESULT TO PRINTER THREAD".red());
     }
@@ -587,7 +619,10 @@ enum RequestType {
 struct IntervalWrapper {}
 
 impl<'a> FromSql<'a> for IntervalWrapper {
-    fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+    fn from_sql(
+        ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         match *ty {
             Type::INTERVAL => {
                 let _str_value = std::str::from_utf8(raw)?;
@@ -604,7 +639,6 @@ impl<'a> FromSql<'a> for IntervalWrapper {
         *ty == Type::INTERVAL
     }
 }
-
 
 #[tokio::test]
 async fn test_query_data_types() {}
