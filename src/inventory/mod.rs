@@ -1,7 +1,6 @@
-//! Inventory management module for handling server configurations
-//! 
-//! This module provides functionality for loading, managing and saving
-//! server inventory configurations.
-
+mod cluster;
+mod deployment;
+mod environment;
 pub(crate) mod inventory_manager;
-
+pub mod server;
+mod server_group;

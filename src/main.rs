@@ -2,6 +2,7 @@ mod version;
 
 mod clap_parser;
 mod inventory;
+mod facts_collector;
 
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
@@ -167,7 +168,8 @@ fn print_separator() {
 async fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
     print!("Loading Inventory File: <{}> ... ", inventory_file_name);
     let mut inventory_manager = InventoryManager::new(&inventory_file_name);
-    inventory_manager.load_inventory_from_file().await;
+    let result = inventory_manager.load_inventory_from_file().await;
+
     print!("DONE\n");
     inventory_manager
 }
