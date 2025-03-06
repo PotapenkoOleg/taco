@@ -1,8 +1,8 @@
 mod version;
 
 mod clap_parser;
-mod inventory;
 mod facts_collector;
+mod inventory;
 
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
@@ -30,10 +30,10 @@ use crate::version::{
 
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
     print_separator();
     print_banner();
     print_separator();
-    let args = Args::parse();
     let inventory_manager = load_inventory_file(&args.inventory).await;
     print_separator();
     let mut history: Vec<String> = Vec::new();
@@ -166,11 +166,14 @@ fn print_separator() {
 }
 
 async fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
-    print!("Loading Inventory File: <{}> ... ", inventory_file_name);
+    println!("Loading Inventory File: <{}> ", inventory_file_name);
     let mut inventory_manager = InventoryManager::new(&inventory_file_name);
     let result = inventory_manager.load_inventory_from_file().await;
-
-    print!("DONE\n");
+    if result.is_err() {
+        eprintln!("{}", result.err().unwrap().to_string().red());
+        process::exit(1);
+    }
+    println!("DONE Loading Inventory File");
     inventory_manager
 }
 
