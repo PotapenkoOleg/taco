@@ -53,11 +53,11 @@ impl fmt::Display for Server {
             f,
             "host={} port={} dbname={} user={} password={} connect_timeout={} application_name=taco",
             self.host,
-            self.port.expect("port must be set"),
-            self.db_name.as_ref().expect("db_name must be set"),
-            self.user.as_ref().expect("user must be set"),
-            self.password.as_ref().expect("password must be set"),
-            self.connect_timeout_sec.expect("connect_timeout_sec must be set")
+            self.port.unwrap_or_default(),
+            self.db_name.as_deref().unwrap_or("default_dbname"),
+            self.user.as_deref().unwrap_or("default_user"),
+            self.password.as_deref().unwrap_or("default_password"),
+            self.connect_timeout_sec.unwrap_or_default()
         )
     }
 }
