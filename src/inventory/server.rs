@@ -10,8 +10,8 @@ pub struct Server {
     pub user: Option<String>,
     pub password: Option<String>,
     pub connect_timeout_sec: Option<i32>,
-    #[serde(skip_serializing)]
-    pub is_active: bool,
+    //#[serde(skip_serializing)]
+    //pub is_active: bool,
 }
 
 impl Server {
@@ -35,7 +35,7 @@ impl Server {
             connect_timeout_sec: from
                 .connect_timeout_sec
                 .or_else(|| connect_timeout_sec.clone()),
-            is_active: true,
+            //is_active: true,
         }
     }
 
