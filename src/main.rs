@@ -67,6 +67,10 @@ async fn main() {
             process::exit(0);
         }
         if preprocessed_command.cmp(&"history".to_string()).is_eq() {
+            if history.is_empty() {
+                println!("{}", "HISTORY IS EMPTY".yellow());
+                continue;
+            }
             println!("{}", "HISTORY".yellow());
             for (index, value) in history.iter_mut().enumerate() {
                 trim_newline(value);
@@ -84,8 +88,13 @@ async fn main() {
             continue;
         }
         if preprocessed_command.starts_with("batch") {
+
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
+            if parts_vec.len() < 2usize {
+                println!("{}", "BATCH COMMAND FORMAT: batch <start|end>".yellow());
+                continue;
+            }
             if parts_vec[1].eq("start") {
                 println!("{}", "BATCH STARTED".yellow());
             }
@@ -98,6 +107,10 @@ async fn main() {
         if preprocessed_command.starts_with("use") {
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
+            if parts_vec.len() < 2usize {
+                println!("{}", "USE COMMAND FORMAT: use <db_name>".yellow());
+                continue;
+            }
             println!("{}", format!("USING DB <{}>", parts_vec[1]).yellow());
             {
                 // this block for mutex release
@@ -109,6 +122,10 @@ async fn main() {
         if preprocessed_command.starts_with("show") {
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
+            if parts_vec.len() < 2usize {
+                println!("{}", "SHOW COMMAND FORMAT: show <true|false>".yellow());
+                continue;
+            }
             println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[2]).yellow());
             {
                 // this block for mutex release
