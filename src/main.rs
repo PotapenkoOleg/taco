@@ -15,6 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::io::{self, Write};
 use std::process;
+use std::sync::LazyLock;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
@@ -156,9 +157,12 @@ fn print_banner() {
 }
 
 fn build_separator() -> String {
-    let template = "*";
-    let n = 80;
-    template.repeat(n)
+    static SEPARATOR: LazyLock<String> = LazyLock::new(|| {
+        let template = "*";
+        let n = 80;
+        template.repeat(n)
+    });
+    SEPARATOR.to_string()
 }
 
 fn print_separator() {
