@@ -5,7 +5,12 @@ mod facts_collector;
 mod inventory;
 
 use crate::clap_parser::Args;
+use crate::facts_collector::patroni_checker::PatroniChecker;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
+use crate::version::{
+    COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
+    VERSION_MINOR, VERSION_PATCH,
+};
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use clap::Parser;
 use colored::Colorize;
@@ -24,13 +29,52 @@ use tokio_postgres::types::{FromSql, Oid, Type};
 use tokio_postgres::{Error, NoTls};
 use uuid::Uuid;
 
-use crate::version::{
-    COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
-    VERSION_MINOR, VERSION_PATCH,
-};
-
 #[tokio::main]
 async fn main() {
+    let patroni_checker = PatroniChecker::new();
+
+    if let Ok(healthy) = patroni_checker.check_health().await {
+        println!("healthy = {}", healthy);
+    }
+
+    if let Ok(info) = patroni_checker.get_cluster_info().await {
+        println!("{}", info);
+    }
+
+    if let Ok(is_primary) = patroni_checker.is_primary().await {
+        println!("is_primary {:?}", is_primary);
+    }
+
+    if let Ok(is_replica) = patroni_checker.is_replica().await {
+        println!("is_replica {:?}", is_replica);
+    }
+
+    if let Ok(replica_has_no_lag) = patroni_checker.check_replica_lag("10MB").await {
+        println!("replica_has_no_lag {}", replica_has_no_lag);
+    }
+
+    if let Ok(is_read_write) = patroni_checker.is_read_write().await {
+        println!("is_read_write {:?}", is_read_write);
+    }
+
+    if let Ok(is_read_only) = patroni_checker.is_read_only().await {
+        println!("is_read_only {:?}", is_read_only);
+    }
+
+    if let Ok(is_standby_leader) = patroni_checker.is_standby_leader().await {
+        println!("is_standby_leader {:?}", is_standby_leader);
+    }
+
+    if let Ok(is_sync_standby) = patroni_checker.is_sync_standby().await{
+        println!("is_sync_standby {:?}", is_sync_standby);
+    }
+
+    if let Ok(is_async_standby) = patroni_checker.is_async_standby().await{
+        println!("is_async_standby {:?}", is_async_standby);
+    }
+
+    process::exit(0);
+
     let args = Args::parse();
     print_separator();
     print_banner();
@@ -88,7 +132,6 @@ async fn main() {
             continue;
         }
         if preprocessed_command.starts_with("batch") {
-
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
             if parts_vec.len() < 2usize {

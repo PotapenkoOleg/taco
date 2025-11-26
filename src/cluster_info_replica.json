@@ -1,0 +1,29 @@
+{
+  "database_system_identifier": "7576852068331798590",
+  "dcs_last_seen": 1764126786,
+  "patroni": {
+    "name": "worker-dr-3",
+    "scope": "stampede",
+    "version": "4.1.0"
+  },
+  "pending_restart": true,
+  "pending_restart_reason": {
+    "max_worker_processes": {
+      "new_value": "8",
+      "old_value": "20"
+    }
+  },
+  "postmaster_start_time": "2025-11-25 21:16:45.785644-05:00",
+  "quorum_standby": true,
+  "replication_state": "streaming",
+  "role": "replica",
+  "server_version": 170006,
+  "state": "running",
+  "timeline": 2,
+  "xlog": {
+    "paused": false,
+    "received_location": 51159312,
+    "replayed_location": 51159312,
+    "replayed_timestamp": "2025-11-25 21:18:06.324207-05:00"
+  }
+}

@@ -3,6 +3,7 @@
 # sudo apt-get install libudev-dev
 # centos 7
 # sudo yum install openssl openssl-devel
+# sudo dnf groupinstall "Development Tools"
 
 
 Backlog

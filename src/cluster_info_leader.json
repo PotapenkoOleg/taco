@@ -1,0 +1,34 @@
+{
+  "database_system_identifier": "7576852068331798590",
+  "dcs_last_seen": 1764126736,
+  "patroni": {
+    "name": "worker-pr-1",
+    "scope": "stampede",
+    "version": "4.1.0"
+  },
+  "pending_restart": true,
+  "pending_restart_reason": {
+    "max_worker_processes": {
+      "new_value": "8",
+      "old_value": "20"
+    }
+  },
+  "postmaster_start_time": "2025-11-25 21:16:44.929191-05:00",
+  "replication": [
+    {
+      "application_name": "worker-dr-3",
+      "client_addr": "192.168.4.116",
+      "state": "streaming",
+      "sync_priority": 1,
+      "sync_state": "quorum",
+      "usename": "rep_user"
+    }
+  ],
+  "role": "primary",
+  "server_version": 170006,
+  "state": "running",
+  "timeline": 2,
+  "xlog": {
+    "location": 51159312
+  }
+}
