@@ -1,1 +1,4 @@
-pub struct PostgresFactsCollector {}
+use tokio_postgres::{Error, NoTls};
+
+pub struct PostgresFactsCollector {
+}

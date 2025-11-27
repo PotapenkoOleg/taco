@@ -1,0 +1,42 @@
+base_url: "http://192.168.4.117:8008/".to_string()
+
+"{\"state\": \"running\", \"postmaster_start_time\": \"2025-11-27 00:57:02.290635-05:00\", \"role\": \"replica\", \"server_version\": 170006, \"xlog\": {\"received_location\": 67111680, \"replayed_location\": 67111680, \"replayed_timestamp\": \"2025-11-26 19:57:41.388791-05:00\", \"paused\": false}, \"quorum_standby\": true, \"timeline\": 3, \"replication_state\": \"streaming\", \"dcs_last_seen\": 1764223295, \"database_system_identifier\": \"7576852068347211833\", \"pending_restart\": true, \"pending_restart_reason\": {\"max_worker_processes\": {\"old_value\": \"20\", \"new_value\": \"8\"}}, \"patroni\": {\"version\": \"4.1.0\", \"scope\": \"stampede\", \"name\": \"worker-dr-4\"}}"
+healthy = true
+{"members":[{"api_url":"http://192.168.4.117:8008/patroni","host":"192.168.4.117","lag":0,"lsn":"0/4000B00","name":"worker-dr-4","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"receive_lag":0,"receive_lsn":"0/4000B00","replay_lag":0,"replay_lsn":"0/4000B00","role":"quorum_standby","state":"streaming","timeline":3},{"api_url":"http://192.168.4.115:8008/patroni","host":"192.168.4.115","name":"worker-pr-2","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"role":"leader","state":"running","timeline":3}],"scope":"stampede"}
+is_primary false
+is_replica true
+replica_has_no_lag true
+is_read_write false
+is_read_only true
+is_standby_leader false
+is_sync_standby false
+is_async_standby false
+
+base_url: "http://192.168.4.111:8008/".to_string()
+
+"{\"state\": \"running\", \"postmaster_start_time\": \"2025-11-26 19:56:51.531237-05:00\", \"role\": \"primary\", \"server_version\": 170006, \"xlog\": {\"location\": 84762160}, \"timeline\": 3, \"replication\": [{\"usename\": \"rep_user\", \"application_name\": \"coordinator-dr-3\", \"client_addr\": \"192.168.4.113\", \"state\": \"streaming\", \"sync_state\": \"quorum\", \"sync_priority\": 1}, {\"usename\": \"rep_user\", \"application_name\": \"coordinator-dr-2\", \"client_addr\": \"192.168.4.112\", \"state\": \"streaming\", \"sync_state\": \"quorum\", \"sync_priority\": 1}], \"dcs_last_seen\": 1764223459, \"database_system_identifier\": \"7576852066449935314\", \"pending_restart\": true, \"pending_restart_reason\": {\"max_worker_processes\": {\"old_value\": \"20\", \"new_value\": \"8\"}}, \"patroni\": {\"version\": \"4.1.0\", \"scope\": \"stampede\", \"name\": \"coordinator-pr-1\"}}"
+healthy = true
+{"members":[{"api_url":"http://192.168.4.112:8008/patroni","host":"192.168.4.112","lag":0,"lsn":"0/50D5E30","name":"coordinator-dr-2","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"receive_lag":0,"receive_lsn":"0/50D5E30","replay_lag":0,"replay_lsn":"0/50D5E30","role":"quorum_standby","state":"streaming","timeline":3},{"api_url":"http://192.168.4.113:8008/patroni","host":"192.168.4.113","lag":0,"lsn":"0/50D5E30","name":"coordinator-dr-3","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"receive_lag":0,"receive_lsn":"0/50D5E30","replay_lag":0,"replay_lsn":"0/50D5E30","role":"quorum_standby","state":"streaming","timeline":3},{"api_url":"http://192.168.4.111:8008/patroni","host":"192.168.4.111","name":"coordinator-pr-1","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"role":"leader","state":"running","timeline":3}],"scope":"stampede"}
+is_primary true
+is_replica false
+replica_has_no_lag false
+is_read_write true
+is_read_only true
+is_standby_leader false
+is_sync_standby false
+is_async_standby false
+
+
+base_url: "http://192.168.4.112:8008/".to_string()
+
+"{\"state\": \"running\", \"postmaster_start_time\": \"2025-11-26 19:56:49.673973-05:00\", \"role\": \"replica\", \"server_version\": 170006, \"xlog\": {\"received_location\": 84762160, \"replayed_location\": 84762160, \"replayed_timestamp\": \"2025-11-27 00:57:50.577689-05:00\", \"paused\": false}, \"quorum_standby\": true, \"timeline\": 3, \"replication_state\": \"streaming\", \"dcs_last_seen\": 1764223499, \"database_system_identifier\": \"7576852066449935314\", \"pending_restart\": true, \"pending_restart_reason\": {\"max_worker_processes\": {\"old_value\": \"20\", \"new_value\": \"8\"}}, \"patroni\": {\"version\": \"4.1.0\", \"scope\": \"stampede\", \"name\": \"coordinator-dr-2\"}}"
+healthy = true
+{"members":[{"api_url":"http://192.168.4.112:8008/patroni","host":"192.168.4.112","lag":0,"lsn":"0/50D5E30","name":"coordinator-dr-2","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"receive_lag":0,"receive_lsn":"0/50D5E30","replay_lag":0,"replay_lsn":"0/50D5E30","role":"quorum_standby","state":"streaming","timeline":3},{"api_url":"http://192.168.4.113:8008/patroni","host":"192.168.4.113","lag":0,"lsn":"0/50D5E30","name":"coordinator-dr-3","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"receive_lag":0,"receive_lsn":"0/50D5E30","replay_lag":0,"replay_lsn":"0/50D5E30","role":"quorum_standby","state":"streaming","timeline":3},{"api_url":"http://192.168.4.111:8008/patroni","host":"192.168.4.111","name":"coordinator-pr-1","pending_restart":true,"pending_restart_reason":{"max_worker_processes":{"new_value":"8","old_value":"20"}},"port":5432,"role":"leader","state":"running","timeline":3}],"scope":"stampede"}
+is_primary false
+is_replica true
+replica_has_no_lag true
+is_read_write false
+is_read_only true
+is_standby_leader false
+is_sync_standby false
+is_async_standby false

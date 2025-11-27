@@ -29,7 +29,7 @@ impl PatroniChecker {
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::new(),
-            base_url: "http://192.168.4.117:8008/".to_string()
+            base_url: "http://192.168.4.112:8008/".to_string()
         }
     }
     

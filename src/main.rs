@@ -6,6 +6,7 @@ mod inventory;
 
 use crate::clap_parser::Args;
 use crate::facts_collector::patroni_checker::PatroniChecker;
+use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
@@ -31,6 +32,13 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() {
+    let citus_fact_collector = CitusFactsCollector::new("host=192.168.4.112 dbname=stampede user=postgres password=postgres".to_string());
+
+    let active_worker_nodes = citus_fact_collector.get_active_worker_nodes().await;
+    
+    println!("Active worker nodes: {:?}", active_worker_nodes);
+    process::exit(0);
+    
     let patroni_checker = PatroniChecker::new();
 
     if let Ok(healthy) = patroni_checker.check_health().await {
