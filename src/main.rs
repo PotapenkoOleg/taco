@@ -41,6 +41,13 @@ async fn main() {
     let pg_stat_replication = postgres_facts_collector.check_pg_stat_replication().await;
     println!("{:?}", pg_stat_replication);
 
+    let postgres_facts_collector = PostgresFactsCollector::new(
+        "host=192.168.4.116 dbname=stampede user=postgres password=postgres",
+    );
+
+    let pg_stat_wal_receiver = postgres_facts_collector.check_pg_stat_wal_receiver().await;
+    println!("{:?}", pg_stat_wal_receiver);
+
 
     process::exit(0);
 
