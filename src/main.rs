@@ -5,8 +5,9 @@ mod facts_collector;
 mod inventory;
 
 use crate::clap_parser::Args;
-use crate::facts_collector::patroni_checker::PatroniChecker;
 use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
+use crate::facts_collector::patroni_checker::PatroniChecker;
+use crate::facts_collector::postgres_facts_collector::PostgresFactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
@@ -20,6 +21,7 @@ use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::io::{self, Write};
+use std::net::IpAddr;
 use std::process;
 use std::sync::LazyLock;
 use std::sync::{Arc, Mutex};
@@ -32,13 +34,25 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() {
-    let citus_fact_collector = CitusFactsCollector::new("host=192.168.4.112 dbname=stampede user=postgres password=postgres".to_string());
+    let postgres_facts_collector = PostgresFactsCollector::new(
+        "host=192.168.4.111 dbname=stampede user=postgres password=postgres",
+    );
+
+    let pg_stat_replication = postgres_facts_collector.check_pg_stat_replication().await;
+    println!("{:?}", pg_stat_replication);
+
+
+    process::exit(0);
+
+    let citus_fact_collector = CitusFactsCollector::new(
+        "host=192.168.4.112 dbname=stampede user=postgres password=postgres",
+    );
 
     let active_worker_nodes = citus_fact_collector.get_active_worker_nodes().await;
-    
+
     println!("Active worker nodes: {:?}", active_worker_nodes);
     process::exit(0);
-    
+
     let patroni_checker = PatroniChecker::new();
 
     if let Ok(healthy) = patroni_checker.check_health().await {
@@ -73,11 +87,11 @@ async fn main() {
         println!("is_standby_leader {:?}", is_standby_leader);
     }
 
-    if let Ok(is_sync_standby) = patroni_checker.is_sync_standby().await{
+    if let Ok(is_sync_standby) = patroni_checker.is_sync_standby().await {
         println!("is_sync_standby {:?}", is_sync_standby);
     }
 
-    if let Ok(is_async_standby) = patroni_checker.is_async_standby().await{
+    if let Ok(is_async_standby) = patroni_checker.is_async_standby().await {
         println!("is_async_standby {:?}", is_async_standby);
     }
 
@@ -441,6 +455,9 @@ async fn process_query(
             // https://www.postgresql.org/docs/current/datatype.html
             let col_type: String = column.type_().to_string();
 
+            // TODO: Handle NULLs with Option
+            // Example: let value: Option<i16> = row.get(col_index); // this is null
+
             // region Numeric Types
             // https://www.postgresql.org/docs/current/datatype-numeric.html
             if col_type == "int2" || col_type == "smallint" || col_type == "smallserial" {
@@ -448,7 +465,8 @@ async fn process_query(
                 row_vec.push(Cell::new(&*value.to_string()));
                 continue;
             }
-            if col_type == "int4" || col_type == "int" || col_type == "serial" {
+            if col_type == "int4" || col_type == "int" || col_type == "serial" || col_type == "xid"
+            {
                 let value: i32 = row.get(col_index);
                 row_vec.push(Cell::new(&*value.to_string()));
                 continue;
@@ -576,6 +594,14 @@ async fn process_query(
                 continue;
             }
             // endregion
+
+            // region Inet Types
+            // https://docs.rs/tokio-postgres/latest/tokio_postgres/types/trait.ToSql.html
+            if col_type == "inet" {
+                let value: IpAddr = row.get(col_index);
+                row_vec.push(Cell::new(&*value.to_string()));
+                continue;
+            }
 
             // TODO: more types
             row_vec.push(Cell::new("?")); //placeholder for unknown types

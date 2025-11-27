@@ -1,17 +1,17 @@
 use tokio_postgres::{Error, NoTls};
 
-pub struct CitusFactsCollector {
-    connection_string: String, // "host=192.168.4.112 dbname=stampede user=postgres password=postgres"
+pub struct CitusFactsCollector<'a> {
+    connection_string: &'a str, // "host=192.168.4.112 dbname=stampede user=postgres password=postgres"
 }
 
-impl CitusFactsCollector {
-    pub fn new(connection_string: String) -> Self {
+impl<'a> CitusFactsCollector<'a> {
+    pub fn new(connection_string: &'a str) -> Self {
         CitusFactsCollector {
             connection_string,
         }
     }
 
-    pub async fn get_active_worker_nodes(&self) -> Result<(Vec<(String, i64)>), Error> {
+    pub async fn get_active_worker_nodes(&self) -> Result<Vec<(String, i64)>, Error> {
         let (client, connection) = tokio_postgres::connect(&self.connection_string, NoTls).await?;
         tokio::spawn(async move {
             if let Err(e) = connection.await {
