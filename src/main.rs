@@ -6,7 +6,7 @@ mod inventory;
 
 use crate::clap_parser::Args;
 use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
-use crate::facts_collector::patroni_checker::PatroniChecker;
+use crate::facts_collector::patroni_facts_collector::PatroniFactsCollector;
 use crate::facts_collector::postgres_facts_collector::PostgresFactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::version::{
@@ -34,71 +34,72 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() {
-    let postgres_facts_collector = PostgresFactsCollector::new(
-        "host=192.168.4.111 dbname=stampede user=postgres password=postgres",
-    );
+    // let postgres_facts_collector = PostgresFactsCollector::new(
+    //     "host=192.168.4.111 dbname=stampede user=postgres password=postgres",
+    // );
+    //
+    // let pg_stat_replication = postgres_facts_collector.check_pg_stat_replication().await;
+    // println!("{:?}", pg_stat_replication);
+    //
+    // let postgres_facts_collector = PostgresFactsCollector::new(
+    //     "host=192.168.4.116 dbname=stampede user=postgres password=postgres",
+    // );
+    //
+    // let pg_stat_wal_receiver = postgres_facts_collector.check_pg_stat_wal_receiver().await;
+    // println!("{:?}", pg_stat_wal_receiver);
 
-    let pg_stat_replication = postgres_facts_collector.check_pg_stat_replication().await;
-    println!("{:?}", pg_stat_replication);
+    //process::exit(0);
 
-    let postgres_facts_collector = PostgresFactsCollector::new(
-        "host=192.168.4.116 dbname=stampede user=postgres password=postgres",
-    );
+    // let citus_fact_collector = CitusFactsCollector::new(
+    //     "host=192.168.4.112 dbname=stampede user=postgres password=postgres",
+    // );
+    //
+    // let active_worker_nodes = citus_fact_collector.get_active_worker_nodes().await;
+    //
+    // println!("Active worker nodes: {:?}", active_worker_nodes);
+    // //process::exit(0);
 
-    let pg_stat_wal_receiver = postgres_facts_collector.check_pg_stat_wal_receiver().await;
-    println!("{:?}", pg_stat_wal_receiver);
+    let patroni_facts_collector = PatroniFactsCollector::new("http://192.168.4.111:8008/");
 
+    let node_status = patroni_facts_collector.check_node_status().await;
 
-    process::exit(0);
+    if let Ok(info) = patroni_facts_collector.get_cluster_info().await {
+        //println!("{}", info);
+    }
 
-    let citus_fact_collector = CitusFactsCollector::new(
-        "host=192.168.4.112 dbname=stampede user=postgres password=postgres",
-    );
-
-    let active_worker_nodes = citus_fact_collector.get_active_worker_nodes().await;
-
-    println!("Active worker nodes: {:?}", active_worker_nodes);
-    process::exit(0);
-
-    let patroni_checker = PatroniChecker::new();
-
-    if let Ok(healthy) = patroni_checker.check_health().await {
+    if let Ok(healthy) = patroni_facts_collector.check_health().await {
         println!("healthy = {}", healthy);
     }
 
-    if let Ok(info) = patroni_checker.get_cluster_info().await {
-        println!("{}", info);
-    }
-
-    if let Ok(is_primary) = patroni_checker.is_primary().await {
+    if let Ok(is_primary) = patroni_facts_collector.is_primary().await {
         println!("is_primary {:?}", is_primary);
     }
 
-    if let Ok(is_replica) = patroni_checker.is_replica().await {
+    if let Ok(is_replica) = patroni_facts_collector.is_replica().await {
         println!("is_replica {:?}", is_replica);
     }
 
-    if let Ok(replica_has_no_lag) = patroni_checker.check_replica_lag("10MB").await {
+    if let Ok(replica_has_no_lag) = patroni_facts_collector.check_replica_lag("10MB").await {
         println!("replica_has_no_lag {}", replica_has_no_lag);
     }
 
-    if let Ok(is_read_write) = patroni_checker.is_read_write().await {
+    if let Ok(is_read_write) = patroni_facts_collector.is_read_write().await {
         println!("is_read_write {:?}", is_read_write);
     }
 
-    if let Ok(is_read_only) = patroni_checker.is_read_only().await {
+    if let Ok(is_read_only) = patroni_facts_collector.is_read_only().await {
         println!("is_read_only {:?}", is_read_only);
     }
 
-    if let Ok(is_standby_leader) = patroni_checker.is_standby_leader().await {
+    if let Ok(is_standby_leader) = patroni_facts_collector.is_standby_leader().await {
         println!("is_standby_leader {:?}", is_standby_leader);
     }
 
-    if let Ok(is_sync_standby) = patroni_checker.is_sync_standby().await {
+    if let Ok(is_sync_standby) = patroni_facts_collector.is_sync_standby().await {
         println!("is_sync_standby {:?}", is_sync_standby);
     }
 
-    if let Ok(is_async_standby) = patroni_checker.is_async_standby().await {
+    if let Ok(is_async_standby) = patroni_facts_collector.is_async_standby().await {
         println!("is_async_standby {:?}", is_async_standby);
     }
 

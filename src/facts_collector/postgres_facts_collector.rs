@@ -1,7 +1,8 @@
+use anyhow::Result;
 use chrono::{DateTime, Duration, Local};
 use std::net::IpAddr;
+use tokio_postgres::NoTls;
 use tokio_postgres::types::{Oid, PgLsn};
-use tokio_postgres::{Error, NoTls};
 
 #[derive(Debug)]
 pub struct PgStatReplicationResult {
@@ -55,7 +56,7 @@ impl<'a> PostgresFactsCollector<'a> {
         PostgresFactsCollector { connection_string }
     }
 
-    pub async fn check_pg_stat_replication(&self) -> Result<Vec<PgStatReplicationResult>, Error> {
+    pub async fn check_pg_stat_replication(&self) -> Result<Vec<PgStatReplicationResult>> {
         let (client, connection) = tokio_postgres::connect(&self.connection_string, NoTls).await?;
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -96,7 +97,7 @@ impl<'a> PostgresFactsCollector<'a> {
         Ok(result)
     }
 
-    pub async fn check_pg_stat_wal_receiver(&self) -> Result<Vec<PgStatWalReceiverResult>, Error> {
+    pub async fn check_pg_stat_wal_receiver(&self) -> Result<Vec<PgStatWalReceiverResult>> {
         let (client, connection) = tokio_postgres::connect(&self.connection_string, NoTls).await?;
         tokio::spawn(async move {
             if let Err(e) = connection.await {

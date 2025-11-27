@@ -1,17 +1,21 @@
-use tokio_postgres::{Error, NoTls};
+use anyhow::Result;
+use tokio_postgres::NoTls;
+
+pub struct CitusFactsCollectorResult {
+    node_name: Option<String>,
+    node_port: Option<i64>,
+}
 
 pub struct CitusFactsCollector<'a> {
-    connection_string: &'a str, // "host=192.168.4.112 dbname=stampede user=postgres password=postgres"
+    connection_string: &'a str,
 }
 
 impl<'a> CitusFactsCollector<'a> {
     pub fn new(connection_string: &'a str) -> Self {
-        CitusFactsCollector {
-            connection_string,
-        }
+        CitusFactsCollector { connection_string }
     }
 
-    pub async fn get_active_worker_nodes(&self) -> Result<Vec<(String, i64)>, Error> {
+    pub async fn get_active_worker_nodes(&self) -> Result<Vec<CitusFactsCollectorResult>> {
         let (client, connection) = tokio_postgres::connect(&self.connection_string, NoTls).await?;
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -22,11 +26,12 @@ impl<'a> CitusFactsCollector<'a> {
         let rows = client
             .query("SELECT * FROM citus_get_active_worker_nodes();", &[])
             .await?;
-        let mut result: Vec<(String, i64)> = Vec::new();
+        let mut result: Vec<CitusFactsCollectorResult> = Vec::new();
         for row in rows {
-            let node_name: &str = row.get(0);
-            let node_port: i64 = row.get(1);
-            result.push((node_name.to_string(), node_port));
+            result.push(CitusFactsCollectorResult {
+                node_name: row.get(0),
+                node_port: row.get(1),
+            });
         }
         Ok(result)
     }
