@@ -14,40 +14,15 @@ environments:
         server_groups:
           - name: primary
             servers:
-              - host: localhost
-                port: 5432
-                db_name: postgres
-                user: postgres
-                password: postgres
-                connect_timeout_sec: 30
-              - host: localhost
-                port: null
-                db_name: null
-                user: null
-                password: null
-                connect_timeout_sec: null
+              - host: 192.168.4.111
+              - host: 192.168.4.112
+              - host: 192.168.4.113
           - name: dr
             servers:
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
+              - host: 192.168.4.114
+              - host: 192.168.4.115
+              - host: 192.168.4.116
+              - host: 192.168.4.117
       - name: cloud2
         default_port: 5432
         default_db_name: postgres
@@ -72,17 +47,26 @@ environments:
           - name: dr
             servers:
               - host: localhost
-                port: 5432
-                db_name: postgres
-                user: postgres
-                password: postgres
-                connect_timeout_sec: 30
               - host: localhost
-                port: null
-                db_name: null
-                user: null
-                password: null
-                connect_timeout_sec: null
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+              - host: localhost
+
   - name: stage
     default_cluster_name: ''
     clusters: [ ]
