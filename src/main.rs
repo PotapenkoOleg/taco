@@ -59,51 +59,51 @@ async fn main() {
     // println!("Active worker nodes: {:?}", active_worker_nodes);
     // //process::exit(0);
 
-    let patroni_facts_collector = PatroniFactsCollector::new("http://192.168.4.111:8008/");
+    // let patroni_facts_collector = PatroniFactsCollector::new("http://192.168.4.111:8008/");
+    //
+    // let node_status = patroni_facts_collector.check_node_status().await;
+    //
+    // if let Ok(info) = patroni_facts_collector.get_cluster_info().await {
+    //     //println!("{}", info);
+    // }
+    //
+    // if let Ok(healthy) = patroni_facts_collector.check_health().await {
+    //     println!("healthy = {}", healthy);
+    // }
+    //
+    // if let Ok(is_primary) = patroni_facts_collector.is_primary().await {
+    //     println!("is_primary {:?}", is_primary);
+    // }
+    //
+    // if let Ok(is_replica) = patroni_facts_collector.is_replica().await {
+    //     println!("is_replica {:?}", is_replica);
+    // }
+    //
+    // if let Ok(replica_has_no_lag) = patroni_facts_collector.check_replica_lag("10MB").await {
+    //     println!("replica_has_no_lag {}", replica_has_no_lag);
+    // }
+    //
+    // if let Ok(is_read_write) = patroni_facts_collector.is_read_write().await {
+    //     println!("is_read_write {:?}", is_read_write);
+    // }
+    //
+    // if let Ok(is_read_only) = patroni_facts_collector.is_read_only().await {
+    //     println!("is_read_only {:?}", is_read_only);
+    // }
+    //
+    // if let Ok(is_standby_leader) = patroni_facts_collector.is_standby_leader().await {
+    //     println!("is_standby_leader {:?}", is_standby_leader);
+    // }
+    //
+    // if let Ok(is_sync_standby) = patroni_facts_collector.is_sync_standby().await {
+    //     println!("is_sync_standby {:?}", is_sync_standby);
+    // }
+    //
+    // if let Ok(is_async_standby) = patroni_facts_collector.is_async_standby().await {
+    //     println!("is_async_standby {:?}", is_async_standby);
+    // }
 
-    let node_status = patroni_facts_collector.check_node_status().await;
-
-    if let Ok(info) = patroni_facts_collector.get_cluster_info().await {
-        //println!("{}", info);
-    }
-
-    if let Ok(healthy) = patroni_facts_collector.check_health().await {
-        println!("healthy = {}", healthy);
-    }
-
-    if let Ok(is_primary) = patroni_facts_collector.is_primary().await {
-        println!("is_primary {:?}", is_primary);
-    }
-
-    if let Ok(is_replica) = patroni_facts_collector.is_replica().await {
-        println!("is_replica {:?}", is_replica);
-    }
-
-    if let Ok(replica_has_no_lag) = patroni_facts_collector.check_replica_lag("10MB").await {
-        println!("replica_has_no_lag {}", replica_has_no_lag);
-    }
-
-    if let Ok(is_read_write) = patroni_facts_collector.is_read_write().await {
-        println!("is_read_write {:?}", is_read_write);
-    }
-
-    if let Ok(is_read_only) = patroni_facts_collector.is_read_only().await {
-        println!("is_read_only {:?}", is_read_only);
-    }
-
-    if let Ok(is_standby_leader) = patroni_facts_collector.is_standby_leader().await {
-        println!("is_standby_leader {:?}", is_standby_leader);
-    }
-
-    if let Ok(is_sync_standby) = patroni_facts_collector.is_sync_standby().await {
-        println!("is_sync_standby {:?}", is_sync_standby);
-    }
-
-    if let Ok(is_async_standby) = patroni_facts_collector.is_async_standby().await {
-        println!("is_async_standby {:?}", is_async_standby);
-    }
-
-    process::exit(0);
+    //process::exit(0);
 
     let args = Args::parse();
     print_separator();
@@ -269,20 +269,6 @@ async fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
     }
     println!("DONE Loading Inventory File");
     inventory_manager
-}
-
-fn load_settings_file(settings_file_name: &str) -> SettingsManager {
-    print!("Loading Settings File: <{}> ... ", settings_file_name);
-    let settings_manager = SettingsManager::new(&settings_file_name);
-    print!("DONE\n");
-    settings_manager
-}
-
-fn load_secrets_file(secrets_file_name: &str) -> SecretsManager {
-    print!("Loading Secrets File: <{secrets_file_name}> ... ");
-    let secrets_manager = SecretsManager::new(&secrets_file_name);
-    print!("DONE\n");
-    secrets_manager
 }
 
 fn trim_newline(s: &mut String) {
