@@ -1,4 +1,4 @@
-mod cluster;
+pub mod cluster;
 mod deployment;
 mod environment;
 pub(crate) mod inventory_manager;

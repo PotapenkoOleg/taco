@@ -12,16 +12,27 @@ environments:
         default_password: postgres
         default_connect_timeout_sec: 30
         server_groups:
-          - name: primary
+          - name: coordinators
             servers:
               - host: 192.168.4.111
               - host: 192.168.4.112
               - host: 192.168.4.113
-          - name: dr
+          - name: workers
             servers:
               - host: 192.168.4.114
               - host: 192.168.4.115
               - host: 192.168.4.116
+              - host: 192.168.4.117
+          - name: primary
+            servers:
+              - host: 192.168.4.111
+              - host: 192.168.4.114
+              - host: 192.168.4.116
+          - name: dr
+            servers:
+              - host: 192.168.4.112
+              - host: 192.168.4.113
+              - host: 192.168.4.115
               - host: 192.168.4.117
       - name: cloud2
         default_port: 5432
@@ -66,7 +77,6 @@ environments:
               - host: localhost
               - host: localhost
               - host: localhost
-
   - name: stage
     default_cluster_name: ''
     clusters: [ ]

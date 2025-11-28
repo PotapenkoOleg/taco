@@ -3,12 +3,14 @@ mod version;
 mod clap_parser;
 mod facts_collector;
 mod inventory;
+mod server_provider;
 
 use crate::clap_parser::Args;
 use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
 use crate::facts_collector::patroni_facts_collector::PatroniFactsCollector;
 use crate::facts_collector::postgres_facts_collector::PostgresFactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
+use crate::server_provider::server_provider::ServerProvider;
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
     VERSION_MINOR, VERSION_PATCH,
@@ -109,7 +111,12 @@ async fn main() {
     print_separator();
     print_banner();
     print_separator();
-    let inventory_manager = load_inventory_file(&args.inventory).await;
+    let inventory_file_name = args.inventory.clone();
+    println!("Loading Inventory File: <{}> ", inventory_file_name);
+    let server_provider = ServerProvider::new(inventory_file_name).await;
+    let servers= server_provider.get_servers(&"all".to_string());
+    println!("Found {} servers", servers.len());
+    println!("DONE Loading Inventory File");
     print_separator();
     let mut history: Vec<String> = Vec::new();
     let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
@@ -222,7 +229,7 @@ async fn main() {
                 let get_raw_command_result = get_raw_command(&command, &request_type);
                 let raw_server_group = get_raw_command_result.0;
                 let raw_command = get_raw_command_result.1;
-                let servers = inventory_manager.get_servers(&raw_server_group);
+                let servers = server_provider.get_servers(&raw_server_group);
                 let settings_clone = settings.clone();
                 let handle = tokio::spawn(async move {
                     process_request(raw_command, request_type, servers, settings_clone).await
@@ -257,18 +264,6 @@ fn build_separator() -> String {
 
 fn print_separator() {
     println!("{}", build_separator());
-}
-
-async fn load_inventory_file(inventory_file_name: &str) -> InventoryManager {
-    println!("Loading Inventory File: <{}> ", inventory_file_name);
-    let mut inventory_manager = InventoryManager::new(&inventory_file_name);
-    let result = inventory_manager.load_inventory_from_file().await;
-    if result.is_err() {
-        eprintln!("{}", result.err().unwrap().to_string().red());
-        process::exit(1);
-    }
-    println!("DONE Loading Inventory File");
-    inventory_manager
 }
 
 fn trim_newline(s: &mut String) {
