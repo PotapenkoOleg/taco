@@ -4,6 +4,7 @@ mod clap_parser;
 mod facts_collector;
 mod inventory;
 mod server_provider;
+mod input_parser;
 
 use crate::clap_parser::Args;
 use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
