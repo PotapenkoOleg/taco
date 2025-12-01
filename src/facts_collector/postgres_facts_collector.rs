@@ -1,51 +1,7 @@
+use crate::shared::pg_stat_replication_result::PgStatReplicationResult;
+use crate::shared::pg_stat_wal_receiver_result::PgStatWalReceiverResult;
 use anyhow::Result;
-use chrono::{DateTime, Duration, Local};
-use std::net::IpAddr;
 use tokio_postgres::NoTls;
-use tokio_postgres::types::{Oid, PgLsn};
-
-#[derive(Debug)]
-pub struct PgStatReplicationResult {
-    pid: Option<i32>,
-    usesysid: Option<Oid>,
-    usename: Option<String>,
-    application_name: Option<String>,
-    client_addr: Option<IpAddr>,
-    client_hostname: Option<String>,
-    client_port: Option<i32>,
-    backend_start: Option<DateTime<Local>>,
-    backend_xmin: Option<i32>,
-    state: Option<String>,
-    sent_lsn: Option<PgLsn>,
-    write_lsn: Option<PgLsn>,
-    flush_lsn: Option<PgLsn>,
-    replay_lsn: Option<PgLsn>,
-    write_lag: Option<Duration>,
-    flush_lag: Option<Duration>,
-    replay_lag: Option<Duration>,
-    sync_priority: Option<i32>,
-    sync_state: Option<String>,
-    reply_time: Option<DateTime<Local>>,
-}
-
-#[derive(Debug)]
-pub struct PgStatWalReceiverResult {
-    pid: Option<i32>,
-    status: Option<String>,
-    receive_start_lsn: Option<PgLsn>,
-    receive_start_tli: Option<i32>,
-    written_lsn: Option<PgLsn>,
-    flushed_lsn: Option<PgLsn>,
-    received_tli: Option<i32>,
-    last_msg_send_time: Option<DateTime<Local>>,
-    last_msg_receipt_time: Option<DateTime<Local>>,
-    latest_end_lsn: Option<PgLsn>,
-    latest_end_time: Option<DateTime<Local>>,
-    slot_name: Option<String>,
-    sender_host: Option<String>,
-    sender_port: Option<i32>,
-    conninfo: Option<String>,
-}
 
 pub struct PostgresFactsCollector<'a> {
     connection_string: &'a str,

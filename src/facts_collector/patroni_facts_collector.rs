@@ -1,18 +1,7 @@
+use crate::shared::patroni_facts_collector_result::PatroniFactsCollectorResult;
 use anyhow::Result;
 use reqwest::StatusCode;
 use serde_json::Value;
-
-pub struct PatroniFactsCollectorResult {
-    healthy: Option<bool>,
-    is_primary: Option<bool>,
-    is_replica: Option<bool>,
-    replica_has_no_lag: Option<bool>,
-    is_read_write: Option<bool>,
-    is_read_only: Option<bool>,
-    is_standby_leader: Option<bool>,
-    is_sync_standby: Option<bool>,
-    is_async_standby: Option<bool>,
-}
 
 pub struct PatroniFactsCollector<'a> {
     client: reqwest::Client,

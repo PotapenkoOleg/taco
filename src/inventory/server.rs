@@ -1,3 +1,4 @@
+use crate::shared::pg_stat_wal_receiver_result::PgStatWalReceiverResult;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -10,8 +11,27 @@ pub struct Server {
     pub user: Option<String>,
     pub password: Option<String>,
     pub connect_timeout_sec: Option<i32>,
-    //#[serde(skip_serializing)]
-    //pub is_active: bool,
+    // region Facts Collector
+    // region Postgres
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub postgres_is_leader: Option<bool>,
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub postgres_is_replica: Option<bool>,
+    // endregion
+    // region Citus
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub citus_is_active_worker_node: Option<bool>,
+    // endregion
+    // region Patroni
+    pub patroni_is_primary: Option<bool>,
+    pub patroni_is_replica: Option<bool>,
+    pub patroni_is_read_write: Option<bool>,
+    pub patroni_is_read_only: Option<bool>,
+    // endregion
+    // endregion
 }
 
 impl Server {
@@ -35,7 +55,13 @@ impl Server {
             connect_timeout_sec: from
                 .connect_timeout_sec
                 .or_else(|| connect_timeout_sec.clone()),
-            //is_active: true,
+            postgres_is_leader: None,
+            postgres_is_replica: None,
+            citus_is_active_worker_node: None,
+            patroni_is_primary: None,
+            patroni_is_replica: None,
+            patroni_is_read_write: None,
+            patroni_is_read_only: None,
         }
     }
 
@@ -61,5 +87,3 @@ impl fmt::Display for Server {
         )
     }
 }
-
-

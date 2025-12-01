@@ -1,10 +1,6 @@
+use crate::shared::citus_facts_collector_result::CitusFactsCollectorResult;
 use anyhow::Result;
 use tokio_postgres::NoTls;
-
-pub struct CitusFactsCollectorResult {
-    node_name: Option<String>,
-    node_port: Option<i64>,
-}
 
 pub struct CitusFactsCollector<'a> {
     connection_string: &'a str,

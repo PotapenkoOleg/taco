@@ -1,13 +1,13 @@
-use crate::inventory::cluster::Cluster;
+use crate::facts_collector::facts_collector::FactsCollector;
 use crate::inventory::inventory_manager::InventoryManager;
 use crate::inventory::server::Server;
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 use std::process;
+use std::sync::{Arc, Mutex};
 
 pub struct ServerProvider {
-    default_cluster: Cluster,
-    server_groups: HashMap<String, Vec<Server>>
+    server_groups: HashMap<String, Vec<Server>>,
 }
 
 impl ServerProvider {
@@ -20,58 +20,44 @@ impl ServerProvider {
         }
         let mut default_cluster = inventory_manager.get_default_cluster();
 
-        let server_groups: HashMap<String, Vec<Server>> = default_cluster
+        let mut server_groups: HashMap<String, Vec<Server>> = default_cluster
             .server_groups
             .iter()
             .map(|server_group| (server_group.name.clone(), server_group.servers.clone()))
             .collect();
-        
-        default_cluster.server_groups.clear();
-        
-        Self {
-            default_cluster,
-            server_groups
-        }
-    }
-    
-    pub fn get_servers(&self, server_group_name: &String) -> HashSet<Server> {
-        let mut servers = HashSet::new();
-        if server_group_name.to_lowercase().trim() == "all" {
-            servers = self
-                .server_groups
-                .values()
-                .flat_map(|servers| {
-                    servers.iter().map(|server| {
-                        Server::from(
-                            server,
-                            (
-                                &self.default_cluster.default_port,
-                                &self.default_cluster.default_db_name,
-                                &self.default_cluster.default_user,
-                                &self.default_cluster.default_password,
-                                &self.default_cluster.default_connect_timeout_sec,
-                            ),
-                        )
-                    })
-                })
-                .collect();
-        } else {
-            servers = self.server_groups[server_group_name]
-                .iter()
-                .map(|server| {
+
+        let all_servers: HashSet<Server> = server_groups
+            .values()
+            .flat_map(|servers| {
+                servers.iter().map(|server| {
                     Server::from(
                         server,
                         (
-                            &self.default_cluster.default_port,
-                            &self.default_cluster.default_db_name,
-                            &self.default_cluster.default_user,
-                            &self.default_cluster.default_password,
-                            &self.default_cluster.default_connect_timeout_sec,
+                            &default_cluster.default_port,
+                            &default_cluster.default_db_name,
+                            &default_cluster.default_user,
+                            &default_cluster.default_password,
+                            &default_cluster.default_connect_timeout_sec,
                         ),
                     )
                 })
-                .collect()
-        }
-        servers
+            })
+            .collect();
+
+        server_groups.insert("all".to_string(), Vec::from_iter(all_servers));
+
+        default_cluster.server_groups.clear();
+
+        Self { server_groups }
+    }
+
+    pub fn get_servers(&self, server_group_name: &String) -> Vec<Server> {
+        self.server_groups[server_group_name].clone()
+    }
+
+    pub async fn collect_facts(&mut self, settings: &Arc<Mutex<HashMap<String, String>>>) {
+        let all_servers = &mut self.server_groups.get_mut("all").unwrap();
+        let mut facts_collector = FactsCollector::new(all_servers);
+        facts_collector.collect_facts(settings).await;
     }
 }

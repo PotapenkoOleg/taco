@@ -2,9 +2,10 @@ mod version;
 
 mod clap_parser;
 mod facts_collector;
+mod input_parser;
 mod inventory;
 mod server_provider;
-mod input_parser;
+mod shared;
 
 use crate::clap_parser::Args;
 use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
@@ -113,19 +114,26 @@ async fn main() {
     print_banner();
     print_separator();
     let inventory_file_name = args.inventory.clone();
-    println!("Loading Inventory File: <{}> ", inventory_file_name);
-    let server_provider = ServerProvider::new(inventory_file_name).await;
-    let servers= server_provider.get_servers(&"all".to_string());
-    println!("Found {} servers", servers.len());
-    println!("DONE Loading Inventory File");
-    print_separator();
-    let mut history: Vec<String> = Vec::new();
     let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
     {
         // this block for mutex release
         let mut settings_lock = settings.lock().unwrap();
         settings_lock.insert("db".to_string(), "postgres".to_string());
+        settings_lock.insert("collect_postgres_facts".to_string(), "false".to_string());
+        settings_lock.insert("collect_citus_facts".to_string(), "true".to_string());
+        settings_lock.insert("collect_patroni_facts".to_string(), "true".to_string());
+        settings_lock.insert("check_cluster_consistency".to_string(), "true".to_string());
     }
+    println!("Loading Inventory File: <{}> ", inventory_file_name);
+    let mut server_provider = ServerProvider::new(inventory_file_name).await;
+    let servers = server_provider.get_servers(&"all".to_string());
+    // TODO: pass settings
+    server_provider.collect_facts(&settings).await;
+    println!("Found {} servers", servers.len());
+    println!("DONE Loading Inventory File");
+    print_separator();
+    let mut history: Vec<String> = Vec::new();
+
     loop {
         let mut current_db: Option<String> = None;
         {
@@ -280,7 +288,7 @@ async fn process_request(
     //command: String,
     raw_command: String,
     request_type: RequestType,
-    servers: HashSet<Server>,
+    servers: Vec<Server>,
     // inventory_manager: &InventoryManager,
     settings: Arc<Mutex<HashMap<String, String>>>,
 ) {

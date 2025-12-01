@@ -1,0 +1,4 @@
+pub mod pg_stat_replication_result;
+pub mod pg_stat_wal_receiver_result;
+pub mod citus_facts_collector_result;
+pub mod patroni_facts_collector_result;
