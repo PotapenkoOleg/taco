@@ -18,8 +18,7 @@ impl<'a> CitusFactsCollector<'a> {
                 eprintln!("connection error: {}", e);
             }
         });
-        // SELECT nodename, nodeport, noderole, groupid
-        // FROM pg_dist_node;
+
         let rows = client
             .query("SELECT * FROM citus_get_active_worker_nodes();", &[])
             .await?;
@@ -31,5 +30,11 @@ impl<'a> CitusFactsCollector<'a> {
             });
         }
         Ok(result)
+    }
+    
+    pub async fn get_pg_dist_node_info(&self){
+        // https://docs.citusdata.com/en/v13.0/develop/api_metadata.html#worker-node-table
+        // SELECT nodename, nodeport, noderole, groupid FROM pg_dist_node;
+        // SELECT * FROM pg_dist_node order by nodename;
     }
 }

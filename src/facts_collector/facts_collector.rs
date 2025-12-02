@@ -53,34 +53,12 @@ impl<'a> FactsCollector<'a> {
                 _ => {}
             }
         }
-        for server in self.servers.iter_mut() {
-            let connection_string = &server.to_string();
-            if let Some(true) = collect_postgres_facts {
-                println!("Collecting Postgres Facts");
-                let postgres_facts_collector = PostgresFactsCollector::new(connection_string);
-                let pg_stat_replication_result =
-                    postgres_facts_collector.check_pg_stat_replication().await;
-                let pg_stat_wal_receiver_result =
-                    postgres_facts_collector.check_pg_stat_wal_receiver().await;
-                match pg_stat_replication_result {
-                    Ok(value) => {
-                        if value.is_empty() {
-                            server.postgres_is_leader = Some(false);
-                        }
-                    }
-                    _ => {}
-                }
-                match pg_stat_wal_receiver_result {
-                    Ok(value) => {
-                        if value.is_empty() {
-                            server.postgres_is_replica = Some(false);
-                        }
-                    }
-                    _ => {}
-                }
-            }
+
+        if let Some(server) = self.servers.first() {
             if let Some(true) = collect_citus_facts {
-                println!("Collecting Citus Facts");
+                // TODO: set DB to Citus DB
+                let connection_string = &server.to_string();
+                // TODO: Restore DB
                 let citus_facts_collector = CitusFactsCollector::new(connection_string);
                 let active_worker_nodes = citus_facts_collector.get_active_worker_nodes().await;
                 match active_worker_nodes {
@@ -88,9 +66,42 @@ impl<'a> FactsCollector<'a> {
                     _ => {}
                 }
             }
+        }
+
+        for server in self.servers.iter_mut() {
+            let connection_string = &server.to_string();
+            if let Some(true) = collect_postgres_facts {
+                let postgres_facts_collector = PostgresFactsCollector::new(connection_string);
+                let pg_stat_replication_result =
+                    postgres_facts_collector.check_pg_stat_replication().await;
+                let pg_stat_wal_receiver_result =
+                    postgres_facts_collector.check_pg_stat_wal_receiver().await;
+                match pg_stat_replication_result {
+                    Ok(value) => {
+                        if !value.is_empty() {
+                            server.postgres_is_leader = Some(true);
+                        } else {
+                            server.postgres_is_leader = Some(false);
+                        }
+                    }
+                    _ => {}
+                }
+                match pg_stat_wal_receiver_result {
+                    Ok(value) => {
+                        if !value.is_empty() {
+                            server.postgres_is_replica = Some(true);
+                        } else {
+                            server.postgres_is_replica = Some(false);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
             if let Some(true) = collect_patroni_facts {
-                println!("Collecting Patroni Facts");
-                let patroni_facts_collector = PatroniFactsCollector::new(connection_string);
+                let patroni_connection_string = format!("http://{}:8008/", server.host);
+                let patroni_facts_collector =
+                    PatroniFactsCollector::new(&patroni_connection_string);
                 let node_status = patroni_facts_collector.check_node_status().await;
                 match node_status {
                     Ok(value) => {
