@@ -18,7 +18,8 @@ impl<'a> CitusFactsCollector<'a> {
                 eprintln!("connection error: {}", e);
             }
         });
-
+        // SELECT nodename, nodeport, noderole, groupid
+        // FROM pg_dist_node;
         let rows = client
             .query("SELECT * FROM citus_get_active_worker_nodes();", &[])
             .await?;

@@ -3,7 +3,7 @@ name: organization
 default_environment_name: dev
 environments:
   - name: dev
-    default_cluster_name: cloud
+    default_cluster_name: cloud2
     clusters:
       - name: cloud
         default_port: 5432
@@ -39,44 +39,15 @@ environments:
         default_db_name: postgres
         default_user: postgres
         default_password: postgres
-        default_connect_timeout_sec: 30
+        default_connect_timeout_sec: 3
         server_groups:
           - name: primary
             servers:
               - host: localhost
                 port: 5432
-                db_name: postgresh
+                db_name: postgres
                 user: postgres
                 password: postgres
-                connect_timeout_sec: 30
-              - host: localhost
-                port: null
-                db_name: null
-                user: null
-                password: null
-                connect_timeout_sec: null
-          - name: dr
-            servers:
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
-              - host: localhost
   - name: stage
     default_cluster_name: ''
     clusters: [ ]

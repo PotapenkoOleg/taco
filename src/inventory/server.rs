@@ -11,7 +11,14 @@ pub struct Server {
     pub user: Option<String>,
     pub password: Option<String>,
     pub connect_timeout_sec: Option<i32>,
+
+    //region Runtime Information
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub is_node_online: Option<bool>,
+
     // region Facts Collector
+
     // region Postgres
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
@@ -20,16 +27,30 @@ pub struct Server {
     #[serde(skip_deserializing)]
     pub postgres_is_replica: Option<bool>,
     // endregion
+
     // region Citus
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub citus_is_active_coordinator_node: Option<bool>,
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     pub citus_is_active_worker_node: Option<bool>,
     // endregion
+
     // region Patroni
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
     pub patroni_is_primary: Option<bool>,
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
     pub patroni_is_replica: Option<bool>,
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
     pub patroni_is_read_write: Option<bool>,
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
     pub patroni_is_read_only: Option<bool>,
+    // endregion
     // endregion
     // endregion
 }
@@ -55,8 +76,10 @@ impl Server {
             connect_timeout_sec: from
                 .connect_timeout_sec
                 .or_else(|| connect_timeout_sec.clone()),
+            is_node_online: None,
             postgres_is_leader: None,
             postgres_is_replica: None,
+            citus_is_active_coordinator_node: None,
             citus_is_active_worker_node: None,
             patroni_is_primary: None,
             patroni_is_replica: None,

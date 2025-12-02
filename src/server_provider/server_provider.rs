@@ -59,5 +59,6 @@ impl ServerProvider {
         let all_servers = &mut self.server_groups.get_mut("all").unwrap();
         let mut facts_collector = FactsCollector::new(all_servers);
         facts_collector.collect_facts(settings).await;
+        facts_collector.check_cluster_consistency(settings);
     }
 }

@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local};
 use tokio_postgres::types::PgLsn;
 
+#[derive(Debug)]
 pub struct PgStatWalReceiverResult {
     pub pid: Option<i32>,
     pub status: Option<String>,

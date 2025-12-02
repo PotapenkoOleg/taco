@@ -39,20 +39,22 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() {
     // let postgres_facts_collector = PostgresFactsCollector::new(
-    //     "host=192.168.4.111 dbname=stampede user=postgres password=postgres",
+    //     //"host=192.168.4.111 dbname=stampede user=postgres password=postgres",
+    //     "host=localhost dbname=postgres user=postgres password=postgres",
     // );
     //
     // let pg_stat_replication = postgres_facts_collector.check_pg_stat_replication().await;
     // println!("{:?}", pg_stat_replication);
     //
     // let postgres_facts_collector = PostgresFactsCollector::new(
-    //     "host=192.168.4.116 dbname=stampede user=postgres password=postgres",
+    //     //"host=192.168.4.116 dbname=stampede user=postgres password=postgres",
+    //     "host=localhost dbname=postgres user=postgres password=postgres",
     // );
     //
     // let pg_stat_wal_receiver = postgres_facts_collector.check_pg_stat_wal_receiver().await;
     // println!("{:?}", pg_stat_wal_receiver);
-
-    //process::exit(0);
+    //
+    // process::exit(0);
 
     // let citus_fact_collector = CitusFactsCollector::new(
     //     "host=192.168.4.112 dbname=stampede user=postgres password=postgres",
@@ -119,7 +121,7 @@ async fn main() {
         // this block for mutex release
         let mut settings_lock = settings.lock().unwrap();
         settings_lock.insert("db".to_string(), "postgres".to_string());
-        settings_lock.insert("collect_postgres_facts".to_string(), "false".to_string());
+        settings_lock.insert("collect_postgres_facts".to_string(), "true".to_string());
         settings_lock.insert("collect_citus_facts".to_string(), "true".to_string());
         settings_lock.insert("collect_patroni_facts".to_string(), "true".to_string());
         settings_lock.insert("check_cluster_consistency".to_string(), "true".to_string());
@@ -127,9 +129,8 @@ async fn main() {
     println!("Loading Inventory File: <{}> ", inventory_file_name);
     let mut server_provider = ServerProvider::new(inventory_file_name).await;
     let servers = server_provider.get_servers(&"all".to_string());
-    // TODO: pass settings
-    server_provider.collect_facts(&settings).await;
     println!("Found {} servers", servers.len());
+    server_provider.collect_facts(&settings).await;
     println!("DONE Loading Inventory File");
     print_separator();
     let mut history: Vec<String> = Vec::new();
