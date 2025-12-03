@@ -9,6 +9,7 @@ pub struct Cluster {
     pub default_user: Option<String>,
     pub default_password: Option<String>,
     pub default_connect_timeout_sec: Option<i32>,
+    pub citus_db_name: Option<String>,
     pub server_groups: Vec<ServerGroup>,
 }
 
@@ -21,6 +22,7 @@ impl Cluster {
             default_user: None,
             default_password: None,
             default_connect_timeout_sec: None,
+            citus_db_name: None,
             server_groups: Vec::new(),
         }
     }
@@ -33,6 +35,7 @@ impl Cluster {
             default_user: other.default_user.clone(),
             default_password: other.default_password.clone(),
             default_connect_timeout_sec: other.default_connect_timeout_sec,
+            citus_db_name: other.citus_db_name.clone(),
             server_groups: other.server_groups.clone(),
         }
     }

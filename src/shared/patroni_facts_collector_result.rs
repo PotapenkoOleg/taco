@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct PatroniFactsCollectorResult {
     pub healthy: Option<bool>,
     pub is_primary: Option<bool>,

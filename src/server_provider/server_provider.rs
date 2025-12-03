@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 pub struct ServerProvider {
     server_groups: HashMap<String, Vec<Server>>,
+    citus_db_name: Option<String>,
 }
 
 impl ServerProvider {
@@ -48,7 +49,12 @@ impl ServerProvider {
 
         default_cluster.server_groups.clear();
 
-        Self { server_groups }
+        let citus_db_name = default_cluster.citus_db_name;
+
+        Self {
+            server_groups,
+            citus_db_name,
+        }
     }
 
     pub fn get_servers(&self, server_group_name: &String) -> Vec<Server> {
@@ -57,7 +63,7 @@ impl ServerProvider {
 
     pub async fn collect_facts(&mut self, settings: &Arc<Mutex<HashMap<String, String>>>) {
         let all_servers = &mut self.server_groups.get_mut("all").unwrap();
-        let mut facts_collector = FactsCollector::new(all_servers);
+        let mut facts_collector = FactsCollector::new(all_servers, &self.citus_db_name);
         facts_collector.collect_facts(settings).await;
         facts_collector.check_cluster_consistency(settings);
     }

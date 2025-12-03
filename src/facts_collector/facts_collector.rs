@@ -2,18 +2,20 @@ use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
 use crate::facts_collector::patroni_facts_collector::PatroniFactsCollector;
 use crate::facts_collector::postgres_facts_collector::PostgresFactsCollector;
 use crate::inventory::inventory_manager::Server;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 pub struct FactsCollector<'a> {
     servers: &'a mut Vec<Server>,
+    citus_db_name: &'a Option<String>,
     facts_collected: bool,
 }
 
 impl<'a> FactsCollector<'a> {
-    pub fn new(servers: &'a mut Vec<Server>) -> Self {
+    pub fn new(servers: &'a mut Vec<Server>, citus_db_name: &'a Option<String>) -> Self {
         FactsCollector {
             servers,
+            citus_db_name,
             facts_collected: false,
         }
     }
@@ -54,20 +56,6 @@ impl<'a> FactsCollector<'a> {
             }
         }
 
-        if let Some(server) = self.servers.first() {
-            if let Some(true) = collect_citus_facts {
-                // TODO: set DB to Citus DB
-                let connection_string = &server.to_string();
-                // TODO: Restore DB
-                let citus_facts_collector = CitusFactsCollector::new(connection_string);
-                let active_worker_nodes = citus_facts_collector.get_active_worker_nodes().await;
-                match active_worker_nodes {
-                    Ok(value) => {}
-                    _ => {}
-                }
-            }
-        }
-
         for server in self.servers.iter_mut() {
             let connection_string = &server.to_string();
             if let Some(true) = collect_postgres_facts {
@@ -83,8 +71,11 @@ impl<'a> FactsCollector<'a> {
                         } else {
                             server.postgres_is_leader = Some(false);
                         }
+                        server.is_node_online = Some(true);
                     }
-                    _ => {}
+                    _ => {
+                        server.is_node_online = Some(false);
+                    }
                 }
                 match pg_stat_wal_receiver_result {
                     Ok(value) => {
@@ -109,6 +100,39 @@ impl<'a> FactsCollector<'a> {
                         server.patroni_is_replica = value.is_replica;
                         server.patroni_is_read_write = value.is_read_write;
                         server.patroni_is_read_only = value.is_read_only;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let first_server_online = self
+            .servers
+            .iter_mut()
+            .find(|server| server.is_node_online.unwrap() == true);
+
+        if let Some(server_online) = first_server_online {
+            if let Some(true) = collect_citus_facts {
+                let db_name_temp = server_online.db_name.clone();
+                server_online.db_name = Some(self.citus_db_name.as_ref().unwrap().clone());
+                let connection_string = &server_online.to_string();
+                server_online.db_name = db_name_temp;
+                let citus_facts_collector = CitusFactsCollector::new(connection_string);
+                let active_worker_nodes = citus_facts_collector.get_active_worker_nodes().await;
+                let x = citus_facts_collector.get_pg_dist_node_info().await;
+                match active_worker_nodes {
+                    Ok(value) => {
+                        let active_workers: HashSet<String> = value
+                            .iter()
+                            .map(|v| v.node_name.as_ref().unwrap().clone())
+                            .collect();
+                        for server in self.servers.iter_mut() {
+                            if active_workers.contains(&server.host) {
+                                server.citus_is_active_worker_node = Some(true);
+                            } else {
+                                server.citus_is_active_worker_node = Some(false);
+                            }
+                        }
                     }
                     _ => {}
                 }

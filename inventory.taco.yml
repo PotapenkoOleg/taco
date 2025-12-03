@@ -10,7 +10,8 @@ environments:
         default_db_name: postgres
         default_user: postgres
         default_password: postgres
-        default_connect_timeout_sec: 30
+        default_connect_timeout_sec: 3
+        citus_db_name: stampede
         server_groups:
           - name: coordinators
             servers:

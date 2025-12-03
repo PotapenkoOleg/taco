@@ -4,15 +4,15 @@ use reqwest::StatusCode;
 use serde_json::Value;
 
 pub struct PatroniFactsCollector<'a> {
-    client: reqwest::Client,
     base_url: &'a str,
+    client: reqwest::Client,
 }
 
 impl<'a> PatroniFactsCollector<'a> {
     pub fn new(base_url: &'a str) -> Self {
         Self {
-            client: reqwest::Client::new(),
             base_url,
+            client: reqwest::Client::new(),
         }
     }
 

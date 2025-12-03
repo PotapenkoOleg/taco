@@ -128,10 +128,13 @@ async fn main() {
     }
     println!("Loading Inventory File: <{}> ", inventory_file_name);
     let mut server_provider = ServerProvider::new(inventory_file_name).await;
+    println!("DONE Loading Inventory File");
+    print_separator();
+    println!("Collecting Facts");
+    server_provider.collect_facts(&settings).await;
     let servers = server_provider.get_servers(&"all".to_string());
     println!("Found {} servers", servers.len());
-    server_provider.collect_facts(&settings).await;
-    println!("DONE Loading Inventory File");
+    println!("DONE Collecting Facts");
     print_separator();
     let mut history: Vec<String> = Vec::new();
 
