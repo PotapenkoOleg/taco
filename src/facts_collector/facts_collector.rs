@@ -2,6 +2,7 @@ use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
 use crate::facts_collector::patroni_facts_collector::PatroniFactsCollector;
 use crate::facts_collector::postgres_facts_collector::PostgresFactsCollector;
 use crate::inventory::inventory_manager::Server;
+use crate::shared::pg_dist_node_info_result::PgDistNodeInfoResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
@@ -119,7 +120,6 @@ impl<'a> FactsCollector<'a> {
                 server_online.db_name = db_name_temp;
                 let citus_facts_collector = CitusFactsCollector::new(connection_string);
                 let active_worker_nodes = citus_facts_collector.get_active_worker_nodes().await;
-                let x = citus_facts_collector.get_pg_dist_node_info().await;
                 match active_worker_nodes {
                     Ok(value) => {
                         let active_workers: HashSet<String> = value
@@ -131,6 +131,56 @@ impl<'a> FactsCollector<'a> {
                                 server.citus_is_active_worker_node = Some(true);
                             } else {
                                 server.citus_is_active_worker_node = Some(false);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                let pg_dist_node_info = citus_facts_collector.get_pg_dist_node_info().await;
+                match pg_dist_node_info {
+                    Ok(value) => {
+                        let node_info: HashMap<String, PgDistNodeInfoResult> = value
+                            .iter()
+                            .map(|v| (v.nodename.as_ref().unwrap().clone(), (*v).clone()))
+                            .collect();
+                        for server in self.servers.iter_mut() {
+                            let node_info = node_info.get(&server.host);
+                            if let Some(node_info) = node_info {
+                                if server.host == node_info.nodename.clone().unwrap() {
+                                    if let Some(groupid) = node_info.groupid
+                                        && let Some(noderole) = node_info.noderole.clone()
+                                    {
+                                        server.citus_group_id = Some(groupid);
+                                        if groupid == 0 && noderole == "primary" {
+                                            server.citus_is_leader_coordinator_node = Some(true);
+                                            server.citus_is_replica_coordinator_node = Some(false);
+                                            server.citus_is_leader_worker_node = Some(false);
+                                            server.citus_is_replica_worker_node = Some(false);
+                                            continue;
+                                        }
+                                        if groupid == 0 && noderole == "secondary" {
+                                            server.citus_is_leader_coordinator_node = Some(false);
+                                            server.citus_is_replica_coordinator_node = Some(true);
+                                            server.citus_is_leader_worker_node = Some(false);
+                                            server.citus_is_replica_worker_node = Some(false);
+                                            continue;
+                                        }
+                                        if groupid != 0 && noderole == "primary" {
+                                            server.citus_is_leader_coordinator_node = Some(false);
+                                            server.citus_is_replica_coordinator_node = Some(false);
+                                            server.citus_is_leader_worker_node = Some(true);
+                                            server.citus_is_replica_worker_node = Some(false);
+                                            continue;
+                                        }
+                                        if groupid != 0 && noderole == "secondary" {
+                                            server.citus_is_leader_coordinator_node = Some(false);
+                                            server.citus_is_replica_coordinator_node = Some(false);
+                                            server.citus_is_leader_worker_node = Some(false);
+                                            server.citus_is_replica_worker_node = Some(true);
+                                            continue;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

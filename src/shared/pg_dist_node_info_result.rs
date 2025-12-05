@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct  PgDistNodeInfoResult {
     pub nodeid: Option<i32>,
     pub groupid: Option<i32>,

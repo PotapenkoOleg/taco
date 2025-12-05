@@ -1,4 +1,3 @@
-use crate::shared::pg_stat_wal_receiver_result::PgStatWalReceiverResult;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -44,6 +43,9 @@ pub struct Server {
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     pub citus_is_active_worker_node: Option<bool>, // worker node could be inactive
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub citus_group_id:Option<i32>,
     // endregion
 
     // region Patroni
@@ -93,6 +95,7 @@ impl Server {
             citus_is_leader_worker_node: None,
             citus_is_replica_worker_node: None,
             citus_is_active_worker_node: None,
+            citus_group_id: None,
             patroni_is_primary: None,
             patroni_is_replica: None,
             patroni_is_read_write: None,

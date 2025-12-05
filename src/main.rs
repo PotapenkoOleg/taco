@@ -8,10 +8,7 @@ mod server_provider;
 mod shared;
 
 use crate::clap_parser::Args;
-use crate::facts_collector::citus_facts_collector::CitusFactsCollector;
-use crate::facts_collector::patroni_facts_collector::PatroniFactsCollector;
-use crate::facts_collector::postgres_facts_collector::PostgresFactsCollector;
-use crate::inventory::inventory_manager::{InventoryManager, Server};
+use crate::inventory::inventory_manager::Server;
 use crate::server_provider::server_provider::ServerProvider;
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
@@ -22,7 +19,7 @@ use clap::Parser;
 use colored::Colorize;
 use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::{self, Write};
 use std::net::IpAddr;
@@ -38,79 +35,6 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() {
-    // let postgres_facts_collector = PostgresFactsCollector::new(
-    //     //"host=192.168.4.111 dbname=stampede user=postgres password=postgres",
-    //     "host=localhost dbname=postgres user=postgres password=postgres",
-    // );
-    //
-    // let pg_stat_replication = postgres_facts_collector.check_pg_stat_replication().await;
-    // println!("{:?}", pg_stat_replication);
-    //
-    // let postgres_facts_collector = PostgresFactsCollector::new(
-    //     //"host=192.168.4.116 dbname=stampede user=postgres password=postgres",
-    //     "host=localhost dbname=postgres user=postgres password=postgres",
-    // );
-    //
-    // let pg_stat_wal_receiver = postgres_facts_collector.check_pg_stat_wal_receiver().await;
-    // println!("{:?}", pg_stat_wal_receiver);
-    //
-    // process::exit(0);
-
-    // let citus_fact_collector = CitusFactsCollector::new(
-    //     "host=192.168.4.112 dbname=stampede user=postgres password=postgres",
-    // );
-    //
-    // let active_worker_nodes = citus_fact_collector.get_active_worker_nodes().await;
-    //
-    // println!("Active worker nodes: {:?}", active_worker_nodes);
-    // //process::exit(0);
-
-    // let patroni_facts_collector = PatroniFactsCollector::new("http://192.168.4.111:8008/");
-    //
-    // let node_status = patroni_facts_collector.check_node_status().await;
-    //
-    // if let Ok(info) = patroni_facts_collector.get_cluster_info().await {
-    //     //println!("{}", info);
-    // }
-    //
-    // if let Ok(healthy) = patroni_facts_collector.check_health().await {
-    //     println!("healthy = {}", healthy);
-    // }
-    //
-    // if let Ok(is_primary) = patroni_facts_collector.is_primary().await {
-    //     println!("is_primary {:?}", is_primary);
-    // }
-    //
-    // if let Ok(is_replica) = patroni_facts_collector.is_replica().await {
-    //     println!("is_replica {:?}", is_replica);
-    // }
-    //
-    // if let Ok(replica_has_no_lag) = patroni_facts_collector.check_replica_lag("10MB").await {
-    //     println!("replica_has_no_lag {}", replica_has_no_lag);
-    // }
-    //
-    // if let Ok(is_read_write) = patroni_facts_collector.is_read_write().await {
-    //     println!("is_read_write {:?}", is_read_write);
-    // }
-    //
-    // if let Ok(is_read_only) = patroni_facts_collector.is_read_only().await {
-    //     println!("is_read_only {:?}", is_read_only);
-    // }
-    //
-    // if let Ok(is_standby_leader) = patroni_facts_collector.is_standby_leader().await {
-    //     println!("is_standby_leader {:?}", is_standby_leader);
-    // }
-    //
-    // if let Ok(is_sync_standby) = patroni_facts_collector.is_sync_standby().await {
-    //     println!("is_sync_standby {:?}", is_sync_standby);
-    // }
-    //
-    // if let Ok(is_async_standby) = patroni_facts_collector.is_async_standby().await {
-    //     println!("is_async_standby {:?}", is_async_standby);
-    // }
-
-    //process::exit(0);
-
     let args = Args::parse();
     print_separator();
     print_banner();
@@ -132,9 +56,50 @@ async fn main() {
     print_separator();
     println!("Collecting Facts");
     server_provider.collect_facts(&settings).await;
+    println!("{}", "DONE Collecting Facts".green());
+    print_separator();
     let servers = server_provider.get_servers(&"all".to_string());
     println!("Found {} servers", servers.len());
-    println!("{}", "DONE Collecting Facts".green());
+
+    let mut table = Table::new();
+    table.add_row(Row::new(vec![
+        Cell::new("OK"),
+        Cell::new("host"),
+        Cell::new("group"),
+        Cell::new("online"),
+        Cell::new("pg leader"),
+        Cell::new("pg replica"),
+        Cell::new("ct L coord"),
+        Cell::new("ct R coord"),
+        Cell::new("ct L wk"),
+        Cell::new("ct R wk"),
+        Cell::new("pt primary"),
+        Cell::new("pt replica"),
+    ]));
+    for server in servers {
+        // TODO: node offline
+        table.add_row(Row::new(vec![
+            Cell::new(" * "),
+            Cell::new(&server.host),
+            Cell::new(&server.citus_group_id.unwrap().to_string()),
+            Cell::new(&server.is_node_online.unwrap().to_string()),
+            Cell::new(&server.postgres_is_leader.unwrap().to_string()),
+            Cell::new(&server.postgres_is_replica.unwrap().to_string()),
+            Cell::new(&server.citus_is_leader_coordinator_node.unwrap().to_string()),
+            Cell::new(
+                &server
+                    .citus_is_replica_coordinator_node
+                    .unwrap()
+                    .to_string(),
+            ),
+            Cell::new(&server.citus_is_leader_worker_node.unwrap().to_string()),
+            Cell::new(&server.citus_is_replica_worker_node.unwrap().to_string()),
+            Cell::new(&server.patroni_is_primary.unwrap().to_string()),
+            Cell::new(&server.patroni_is_replica.unwrap().to_string()),
+        ]));
+    }
+    println!("{}", table.to_string());
+
     print_separator();
     let mut history: Vec<String> = Vec::new();
 
