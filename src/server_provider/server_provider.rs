@@ -24,7 +24,27 @@ impl ServerProvider {
         let mut server_groups: HashMap<String, Vec<Server>> = default_cluster
             .server_groups
             .iter()
-            .map(|server_group| (server_group.name.clone(), server_group.servers.clone()))
+            .map(|server_group| {
+                (
+                    server_group.name.clone(),
+                    server_group
+                        .servers
+                        .iter()
+                        .map(|server| {
+                            Server::from(
+                                server,
+                                (
+                                    &default_cluster.default_port,
+                                    &default_cluster.default_db_name,
+                                    &default_cluster.default_user,
+                                    &default_cluster.default_password,
+                                    &default_cluster.default_connect_timeout_sec,
+                                ),
+                            )
+                        })
+                        .collect(),
+                )
+            })
             .collect();
 
         let all_servers: HashSet<Server> = server_groups

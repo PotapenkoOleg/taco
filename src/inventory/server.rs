@@ -103,9 +103,6 @@ impl Server {
     pub fn set_db_name(&mut self, db_name: String) {
         self.db_name = Some(db_name);
     }
-    pub fn get_db_name(&self) -> Option<String> {
-        self.db_name.clone()
-    }
 }
 
 impl fmt::Display for Server {

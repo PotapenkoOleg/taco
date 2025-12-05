@@ -128,13 +128,13 @@ async fn main() {
     }
     println!("Loading Inventory File: <{}> ", inventory_file_name);
     let mut server_provider = ServerProvider::new(inventory_file_name).await;
-    println!("DONE Loading Inventory File");
+    println!("{}", "DONE Loading Inventory File".green());
     print_separator();
     println!("Collecting Facts");
     server_provider.collect_facts(&settings).await;
     let servers = server_provider.get_servers(&"all".to_string());
     println!("Found {} servers", servers.len());
-    println!("DONE Collecting Facts");
+    println!("{}", "DONE Collecting Facts".green());
     print_separator();
     let mut history: Vec<String> = Vec::new();
 
@@ -179,22 +179,6 @@ async fn main() {
             println!("Examples: ");
             println!("primary ? select version();");
             println!("dr ! create extension citus;");
-            continue;
-        }
-        if preprocessed_command.starts_with("batch") {
-            let parts = preprocessed_command.split(" ");
-            let parts_vec: Vec<&str> = parts.collect();
-            if parts_vec.len() < 2usize {
-                println!("{}", "BATCH COMMAND FORMAT: batch <start|end>".yellow());
-                continue;
-            }
-            if parts_vec[1].eq("start") {
-                println!("{}", "BATCH STARTED".yellow());
-            }
-            if parts_vec[1].eq("end") {
-                println!("{}", "BATCH ENDED".yellow());
-            }
-            // TODO:
             continue;
         }
         if preprocessed_command.starts_with("use") {
@@ -404,8 +388,8 @@ async fn process_query(
             }
         }
     }
-
-    let connect_result = tokio_postgres::connect(&server.to_string(), NoTls).await;
+    let connection_string = &server.to_string();
+    let connect_result = tokio_postgres::connect(connection_string, NoTls).await;
     if connect_result.as_ref().is_err() {
         let mut result = String::new();
         result.push_str(&format!(
