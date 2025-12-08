@@ -15,7 +15,9 @@ pub struct Server {
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     pub is_node_online: Option<bool>,
-
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub is_node_consistent: Option<bool>,
     // region Facts Collector
 
     // region Postgres
@@ -45,7 +47,7 @@ pub struct Server {
     pub citus_is_active_worker_node: Option<bool>, // worker node could be inactive
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
-    pub citus_group_id:Option<i32>,
+    pub citus_group_id: Option<i32>,
     // endregion
 
     // region Patroni
@@ -88,6 +90,7 @@ impl Server {
                 .connect_timeout_sec
                 .or_else(|| connect_timeout_sec.clone()),
             is_node_online: None,
+            is_node_consistent: None,
             postgres_is_leader: None,
             postgres_is_replica: None,
             citus_is_leader_coordinator_node: None,

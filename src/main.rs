@@ -17,8 +17,10 @@ use crate::version::{
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use clap::Parser;
 use colored::Colorize;
+use prettytable::format::Alignment;
 use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::{self, Write};
@@ -58,48 +60,9 @@ async fn main() {
     server_provider.collect_facts(&settings).await;
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
-    let servers = server_provider.get_servers(&"all".to_string());
+    let mut servers = server_provider.get_servers(&"all".to_string());
     println!("Found {} servers", servers.len());
-
-    let mut table = Table::new();
-    table.add_row(Row::new(vec![
-        Cell::new("OK"),
-        Cell::new("host"),
-        Cell::new("group"),
-        Cell::new("online"),
-        Cell::new("pg leader"),
-        Cell::new("pg replica"),
-        Cell::new("ct L coord"),
-        Cell::new("ct R coord"),
-        Cell::new("ct L wk"),
-        Cell::new("ct R wk"),
-        Cell::new("pt primary"),
-        Cell::new("pt replica"),
-    ]));
-    for server in servers {
-        // TODO: node offline
-        table.add_row(Row::new(vec![
-            Cell::new(" * "),
-            Cell::new(&server.host),
-            Cell::new(&server.citus_group_id.unwrap().to_string()),
-            Cell::new(&server.is_node_online.unwrap().to_string()),
-            Cell::new(&server.postgres_is_leader.unwrap().to_string()),
-            Cell::new(&server.postgres_is_replica.unwrap().to_string()),
-            Cell::new(&server.citus_is_leader_coordinator_node.unwrap().to_string()),
-            Cell::new(
-                &server
-                    .citus_is_replica_coordinator_node
-                    .unwrap()
-                    .to_string(),
-            ),
-            Cell::new(&server.citus_is_leader_worker_node.unwrap().to_string()),
-            Cell::new(&server.citus_is_replica_worker_node.unwrap().to_string()),
-            Cell::new(&server.patroni_is_primary.unwrap().to_string()),
-            Cell::new(&server.patroni_is_replica.unwrap().to_string()),
-        ]));
-    }
-    println!("{}", table.to_string());
-
+    render_severs_table(servers);
     print_separator();
     let mut history: Vec<String> = Vec::new();
 
@@ -226,6 +189,95 @@ fn build_separator() -> String {
 
 fn print_separator() {
     println!("{}", build_separator());
+}
+
+fn render_severs_table(mut servers: Vec<Server>) {
+    servers.sort_by(
+        |left, right| match left.citus_group_id.cmp(&right.citus_group_id) {
+            Ordering::Equal => left.host.cmp(&right.host),
+            left => left,
+        },
+    );
+
+    let mut table = Table::new();
+    table.add_row(Row::new(vec![
+        Cell::new("group"),
+        Cell::new("host"),
+        Cell::new("online"),
+        Cell::new("ct"),
+        Cell::new("pg leader"),
+        Cell::new("pg replica"),
+        Cell::new("ct L coord"),
+        Cell::new("ct R coord"),
+        Cell::new("ct L wk"),
+        Cell::new("ct R wk"),
+        Cell::new("pt primary"),
+        Cell::new("pt replica"),
+    ]));
+    for server in servers {
+        // TODO: node offline
+        table.add_row(Row::new(vec![
+            Cell::new(&server.citus_group_id.unwrap().to_string()),
+            Cell::new(&server.host),
+            Cell::new(if *(&server.is_node_online.unwrap_or(false)) {
+                "*"
+            } else {
+                " "
+            }),
+            Cell::new(if *(&server.is_node_consistent.unwrap_or(false)) {
+                "*"
+            } else {
+                " "
+            }),
+            Cell::new(if *(&server.postgres_is_leader.unwrap_or(false)) {
+                "*"
+            } else {
+                " "
+            }),
+            Cell::new(if *(&server.postgres_is_replica.unwrap_or(false)) {
+                "*"
+            } else {
+                " "
+            }),
+            Cell::new(
+                if *(&server.citus_is_leader_coordinator_node.unwrap_or(false)) {
+                    "*"
+                } else {
+                    " "
+                },
+            ),
+            Cell::new(
+                if *(&server.citus_is_replica_coordinator_node.unwrap_or(false)) {
+                    "*"
+                } else {
+                    " "
+                },
+            ),
+            Cell::new(if *(&server.citus_is_leader_worker_node.unwrap_or(false)) {
+                "*"
+            } else {
+                " "
+            }),
+            Cell::new(
+                if *(&server.citus_is_replica_worker_node.unwrap_or(false)) {
+                    "*"
+                } else {
+                    " "
+                },
+            ),
+            Cell::new(if *(&server.patroni_is_primary.unwrap_or(false)) {
+                "*"
+            } else {
+                " "
+            }),
+            Cell::new(if *(&server.patroni_is_replica.unwrap_or(false)) {
+                "*"
+            } else {
+                " "
+            }),
+        ]));
+    }
+    println!("{}", table.to_string());
 }
 
 fn trim_newline(s: &mut String) {
