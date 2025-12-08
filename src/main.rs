@@ -60,7 +60,15 @@ async fn main() {
     server_provider.collect_facts(&settings).await;
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
-    let mut servers = server_provider.get_servers(&"all".to_string());
+    println!("Checking Cluster Consistency");
+    if server_provider.check_cluster_consistency(&settings) {
+        println!("{}", "CLUSTER IS CONSISTENT".green());
+    } else {
+        println!("{}", "CLUSTER IS NOT CONSISTENT".red());
+    }
+    println!("{}", "DONE Checking Cluster Consistency".green());
+    print_separator();
+    let servers = server_provider.get_servers(&"all".to_string());
     println!("Found {} servers", servers.len());
     render_severs_table(servers);
     print_separator();

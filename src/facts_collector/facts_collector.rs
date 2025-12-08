@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 pub struct FactsCollector<'a> {
     servers: &'a mut Vec<Server>,
     citus_db_name: &'a Option<String>,
-    facts_collected: bool,
 }
 
 impl<'a> FactsCollector<'a> {
@@ -17,13 +16,10 @@ impl<'a> FactsCollector<'a> {
         FactsCollector {
             servers,
             citus_db_name,
-            facts_collected: false,
         }
     }
 
     pub async fn collect_facts(&mut self, settings: &Arc<Mutex<HashMap<String, String>>>) {
-        self.facts_collected = true;
-
         let mut collect_postgres_facts: Option<bool> = None;
         let mut collect_citus_facts: Option<bool> = None;
         let mut collect_patroni_facts: Option<bool> = None;
@@ -186,41 +182,6 @@ impl<'a> FactsCollector<'a> {
                     }
                     _ => {}
                 }
-            }
-        }
-
-        // TODO: check every server for consistency
-        if let Some(true) = check_cluster_consistency {
-            if self.servers.len() == 1 {
-                return;
-            }
-        }
-    }
-
-    pub fn check_cluster_consistency(&mut self, settings: &Arc<Mutex<HashMap<String, String>>>) {
-        if !self.facts_collected {
-            println!("Facts are not collected yet. Please run collect_facts() first");
-            return;
-        }
-        let mut check_cluster_consistency: Option<bool> = None;
-        {
-            // this block for mutex release
-            let settings_lock = settings.lock().unwrap();
-            match settings_lock.get(&"check_cluster_consistency".to_string()) {
-                Some(value) => {
-                    check_cluster_consistency = Some(value == "true");
-                }
-                _ => {}
-            }
-        }
-
-        if let Some(true) = check_cluster_consistency {
-            if self.servers.len() == 1
-                && self.servers[0].postgres_is_leader == Some(false)
-                && self.servers[0].postgres_is_replica == Some(false)
-            {
-                println!("CLUSTER IS CONSISTENT");
-                return;
             }
         }
     }
