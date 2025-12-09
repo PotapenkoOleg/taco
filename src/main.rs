@@ -1,14 +1,16 @@
 mod version;
 
 mod clap_parser;
+mod cluster_consistency_checker;
 mod facts_collector;
 mod input_parser;
 mod inventory;
 mod server_provider;
 mod shared;
-mod cluster_consistency_checker;
 
 use crate::clap_parser::Args;
+use crate::cluster_consistency_checker::cluster_consistency_checker::ClusterConsistencyChecker;
+use crate::facts_collector::facts_collector::FactsCollector;
 use crate::inventory::inventory_manager::Server;
 use crate::server_provider::server_provider::ServerProvider;
 use crate::version::{
@@ -18,7 +20,6 @@ use crate::version::{
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use clap::Parser;
 use colored::Colorize;
-use prettytable::format::Alignment;
 use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
 use std::cmp::Ordering;
@@ -35,7 +36,6 @@ use tokio::task::JoinSet;
 use tokio_postgres::types::{FromSql, Oid, Type};
 use tokio_postgres::{Error, NoTls};
 use uuid::Uuid;
-use crate::cluster_consistency_checker::cluster_consistency_checker::ClusterConsistencyChecker;
 
 #[tokio::main]
 async fn main() {
@@ -54,16 +54,22 @@ async fn main() {
         settings_lock.insert("collect_patroni_facts".to_string(), "true".to_string());
         settings_lock.insert("check_cluster_consistency".to_string(), "true".to_string());
     }
+
     println!("Loading Inventory File: <{}> ", inventory_file_name);
     let mut server_provider = ServerProvider::new(inventory_file_name).await;
+    let (servers_to_check, citus_db_name) =
+        server_provider.get_servers_as_ref_mut(&"all".to_string());
     println!("{}", "DONE Loading Inventory File".green());
     print_separator();
+
     println!("Collecting Facts");
-    server_provider.collect_facts(&settings).await;
+    let mut facts_collector = FactsCollector::new(&settings, servers_to_check, &citus_db_name);
+    facts_collector.collect_facts().await;
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
+
     println!("Checking Cluster Consistency");
-    let servers_to_check  = server_provider.get_servers_as_ref_mut(&"all".to_string());
+
     let mut consistency_checker = ClusterConsistencyChecker::new(&settings, servers_to_check);
     if consistency_checker.check_cluster_consistency() {
         println!("{}", "CLUSTER IS CONSISTENT".green());
@@ -72,6 +78,7 @@ async fn main() {
     }
     println!("{}", "DONE Checking Cluster Consistency".green());
     print_separator();
+
     let servers = server_provider.get_servers(&"all".to_string());
     println!("Found {} servers", servers.len());
     render_severs_table(servers);

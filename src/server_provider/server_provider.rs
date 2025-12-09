@@ -1,10 +1,8 @@
-use crate::facts_collector::facts_collector::FactsCollector;
 use crate::inventory::inventory_manager::InventoryManager;
 use crate::inventory::server::Server;
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 use std::process;
-use std::sync::{Arc, Mutex};
 
 pub struct ServerProvider {
     server_groups: HashMap<String, Vec<Server>>,
@@ -82,13 +80,12 @@ impl ServerProvider {
         self.server_groups[server_group_name].clone()
     }
 
-    pub fn get_servers_as_ref_mut(&mut self, server_group_name: &String) -> &mut Vec<Server> {
-        self.server_groups.get_mut(server_group_name).unwrap()
+    pub fn get_servers_as_ref_mut(&mut self, server_group_name: &String) -> (&mut Vec<Server>, Option<String>) {
+        (self.server_groups.get_mut(server_group_name).unwrap(), self.citus_db_name.clone())
     }
 
-    pub async fn collect_facts(&mut self, settings: &Arc<Mutex<HashMap<String, String>>>) {
-        let all_servers = self.server_groups.get_mut("all").unwrap();
-        let mut facts_collector = FactsCollector::new(all_servers, &self.citus_db_name);
-        facts_collector.collect_facts(settings).await;
+    pub fn get_citus_db_name(&self) -> Option<String> {
+        let result = self.citus_db_name.clone();
+        result
     }
 }

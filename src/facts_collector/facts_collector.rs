@@ -7,26 +7,31 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 pub struct FactsCollector<'a> {
+    settings: &'a Arc<Mutex<HashMap<String, String>>>,
     servers: &'a mut Vec<Server>,
     citus_db_name: &'a Option<String>,
 }
 
 impl<'a> FactsCollector<'a> {
-    pub fn new(servers: &'a mut Vec<Server>, citus_db_name: &'a Option<String>) -> Self {
+    pub fn new(
+        settings: &'a Arc<Mutex<HashMap<String, String>>>,
+        servers: &'a mut Vec<Server>,
+        citus_db_name: &'a Option<String>,
+    ) -> Self {
         FactsCollector {
+            settings,
             servers,
             citus_db_name,
         }
     }
 
-    pub async fn collect_facts(&mut self, settings: &Arc<Mutex<HashMap<String, String>>>) {
+    pub async fn collect_facts(&mut self) {
         let mut collect_postgres_facts: Option<bool> = None;
         let mut collect_citus_facts: Option<bool> = None;
         let mut collect_patroni_facts: Option<bool> = None;
-        let mut check_cluster_consistency: Option<bool> = None;
         {
             // this block for mutex release
-            let settings_lock = settings.lock().unwrap();
+            let settings_lock = self.settings.lock().unwrap();
             match settings_lock.get(&"collect_postgres_facts".to_string()) {
                 Some(value) => {
                     collect_postgres_facts = Some(value == "true");
@@ -42,12 +47,6 @@ impl<'a> FactsCollector<'a> {
             match settings_lock.get(&"collect_patroni_facts".to_string()) {
                 Some(value) => {
                     collect_patroni_facts = Some(value == "true");
-                }
-                _ => {}
-            }
-            match settings_lock.get(&"check_cluster_consistency".to_string()) {
-                Some(value) => {
-                    check_cluster_consistency = Some(value == "true");
                 }
                 _ => {}
             }
