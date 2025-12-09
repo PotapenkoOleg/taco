@@ -6,6 +6,7 @@ mod input_parser;
 mod inventory;
 mod server_provider;
 mod shared;
+mod cluster_consistency_checker;
 
 use crate::clap_parser::Args;
 use crate::inventory::inventory_manager::Server;
@@ -34,6 +35,7 @@ use tokio::task::JoinSet;
 use tokio_postgres::types::{FromSql, Oid, Type};
 use tokio_postgres::{Error, NoTls};
 use uuid::Uuid;
+use crate::cluster_consistency_checker::cluster_consistency_checker::ClusterConsistencyChecker;
 
 #[tokio::main]
 async fn main() {
@@ -61,7 +63,9 @@ async fn main() {
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
     println!("Checking Cluster Consistency");
-    if server_provider.check_cluster_consistency(&settings) {
+    let servers_to_check  = server_provider.get_servers_as_ref_mut(&"all".to_string());
+    let mut consistency_checker = ClusterConsistencyChecker::new(&settings, servers_to_check);
+    if consistency_checker.check_cluster_consistency() {
         println!("{}", "CLUSTER IS CONSISTENT".green());
     } else {
         println!("{}", "CLUSTER IS NOT CONSISTENT".red());
