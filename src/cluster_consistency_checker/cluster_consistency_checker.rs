@@ -1,4 +1,6 @@
 use crate::inventory::inventory_manager::Server;
+use rayon::iter::ParallelIterator;
+use rayon::prelude::IntoParallelRefMutIterator;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -34,12 +36,12 @@ impl<'a> ClusterConsistencyChecker<'a> {
             {
                 return true;
             }
-            let mut results: Vec<bool> = Vec::new();
-            for server in self.servers.iter_mut() {
-                let result = Self::check_server_consistency(server);
-                results.push(result);
-            }
-            return results.iter().all(|x| *x == true);
+            let result = self
+                .servers
+                .par_iter_mut()
+                .map(|server| Self::check_server_consistency(server))
+                .all(|check_result| check_result == true);
+            return result;
         }
         false
     }
