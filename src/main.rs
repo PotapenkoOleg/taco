@@ -79,7 +79,6 @@ async fn main() {
     let mut facts_collector = FactsCollector::new(&settings, &mut servers_to_check, &citus_db_name);
     facts_collector.collect_facts().await;
     drop(facts_collector);
-    server_provider.update_server_group("all".to_string(), servers_to_check.clone());
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
 
@@ -91,6 +90,7 @@ async fn main() {
         println!("{}", "CLUSTER IS NOT CONSISTENT".red());
     }
     drop(consistency_checker);
+    server_provider.update_server_group("all".to_string(), servers_to_check.clone());
     println!("{}", "DONE Checking Cluster Consistency".green());
     print_separator();
 
