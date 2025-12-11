@@ -123,3 +123,9 @@ impl<'a> ClusterConsistencyChecker<'a> {
         false
     }
 }
+
+impl Drop for ClusterConsistencyChecker<'_> {
+    fn drop(&mut self) {
+        println!("Dropping ClusterConsistencyChecker!");
+    }
+}

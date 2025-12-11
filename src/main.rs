@@ -11,7 +11,7 @@ mod shared;
 use crate::clap_parser::Args;
 use crate::cluster_consistency_checker::cluster_consistency_checker::ClusterConsistencyChecker;
 use crate::facts_collector::facts_collector::FactsCollector;
-use crate::inventory::inventory_manager::Server;
+use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::server_provider::server_provider::ServerProvider;
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
@@ -43,7 +43,7 @@ async fn main() {
     print_separator();
     print_banner();
     print_separator();
-    let inventory_file_name = args.inventory.clone();
+    let inventory_file_name = &args.inventory;
     let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
     {
         // this block for mutex release
@@ -56,35 +56,50 @@ async fn main() {
     }
 
     println!("Loading Inventory File: <{}> ", inventory_file_name);
-    let mut server_provider = ServerProvider::new(inventory_file_name).await;
-    let (servers_to_check, citus_db_name) =
-        server_provider.get_servers_as_ref_mut(&"all".to_string());
+
+    let mut inventory_manager = InventoryManager::new(inventory_file_name);
+    let file_load_result = inventory_manager.load_inventory_from_file().await;
+    if file_load_result.is_err() {
+        eprintln!("{}", file_load_result.err().unwrap().to_string().red());
+        process::exit(1);
+    }
+    let static_server_groups = inventory_manager.get_static_server_groups();
+    drop(inventory_manager);
+    if static_server_groups.is_none() {
+        eprintln!("{}", "Static server groups not defined".red());
+        process::exit(1);
+    }
+    let (server_groups, citus_db_name) = static_server_groups.unwrap();
     println!("{}", "DONE Loading Inventory File".green());
     print_separator();
 
     println!("Collecting Facts");
-    let mut facts_collector = FactsCollector::new(&settings, servers_to_check, &citus_db_name);
+    let mut server_provider = ServerProvider::new(server_groups).await;
+    let mut servers_to_check = server_provider.get_servers_in_group("all");
+    let mut facts_collector = FactsCollector::new(&settings, &mut servers_to_check, &citus_db_name);
     facts_collector.collect_facts().await;
+    drop(facts_collector);
+    server_provider.update_server_group("all".to_string(), servers_to_check.clone());
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
 
     println!("Checking Cluster Consistency");
-
-    let mut consistency_checker = ClusterConsistencyChecker::new(&settings, servers_to_check);
+    let mut consistency_checker = ClusterConsistencyChecker::new(&settings, &mut servers_to_check);
     if consistency_checker.check_cluster_consistency() {
         println!("{}", "CLUSTER IS CONSISTENT".green());
     } else {
         println!("{}", "CLUSTER IS NOT CONSISTENT".red());
     }
+    drop(consistency_checker);
     println!("{}", "DONE Checking Cluster Consistency".green());
     print_separator();
 
-    let servers = server_provider.get_servers(&"all".to_string());
+    let servers = server_provider.get_servers_in_group("all");
     println!("Found {} servers", servers.len());
     render_severs_table(servers);
     print_separator();
-    let mut history: Vec<String> = Vec::new();
 
+    let mut history: Vec<String> = Vec::new();
     loop {
         let mut current_db: Option<String> = None;
         {
@@ -173,7 +188,7 @@ async fn main() {
                 let get_raw_command_result = get_raw_command(&command, &request_type);
                 let raw_server_group = get_raw_command_result.0;
                 let raw_command = get_raw_command_result.1;
-                let servers = server_provider.get_servers(&raw_server_group);
+                let servers = server_provider.get_servers_in_group(&raw_server_group);
                 let settings_clone = settings.clone();
                 let handle = tokio::spawn(async move {
                     process_request(raw_command, request_type, servers, settings_clone).await
