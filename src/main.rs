@@ -48,8 +48,7 @@ async fn main() {
     {
         // this block for mutex release
         let mut settings_lock = settings.lock().unwrap();
-        settings_lock.insert("db".to_string(), "postgres".to_string());
-        settings_lock.insert("collect_postgres_facts".to_string(), "true".to_string());
+        settings_lock.insert("current_db".to_string(), "postgres".to_string());
         settings_lock.insert("collect_citus_facts".to_string(), "true".to_string());
         settings_lock.insert("collect_patroni_facts".to_string(), "true".to_string());
         settings_lock.insert("check_cluster_consistency".to_string(), "true".to_string());
@@ -76,8 +75,8 @@ async fn main() {
     println!("Collecting Facts");
     let mut server_provider = ServerProvider::new(server_groups).await;
     let mut servers_to_check = server_provider.get_servers_in_group("all");
-    let mut facts_collector = FactsCollector::new(&settings, &mut servers_to_check, &citus_db_name);
-    facts_collector.collect_facts().await;
+    let facts_collector = FactsCollector::new(&settings);
+    facts_collector.collect_facts(&mut servers_to_check, citus_db_name).await;
     drop(facts_collector);
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
@@ -105,7 +104,7 @@ async fn main() {
         {
             // this block for mutex release
             let settings_lock = settings.lock().unwrap();
-            match settings_lock.get(&"db".to_string()) {
+            match settings_lock.get(&"current_db".to_string()) {
                 Some(db_name) => {
                     current_db = Some(db_name.clone());
                 }
@@ -154,7 +153,7 @@ async fn main() {
             {
                 // this block for mutex release
                 let mut settings_lock = settings.lock().unwrap();
-                settings_lock.insert("db".to_string(), parts_vec[1].to_string());
+                settings_lock.insert("current_db".to_string(), parts_vec[1].to_string());
             }
             continue;
         }
@@ -419,7 +418,7 @@ async fn process_query(
     {
         // this block for mutex release
         let settings_lock = settings.lock().unwrap();
-        match settings_lock.get(&"db".to_string()) {
+        match settings_lock.get(&"current_db".to_string()) {
             Some(db_name) => {
                 server.set_db_name(db_name.clone());
             }
@@ -683,7 +682,7 @@ async fn process_command(
     {
         // this block for mutex release
         let settings_lock = settings.lock().unwrap();
-        match settings_lock.get(&"db".to_string()) {
+        match settings_lock.get(&"current_db".to_string()) {
             Some(db_name) => {
                 server.set_db_name(db_name.clone());
             }
