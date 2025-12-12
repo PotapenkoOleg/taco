@@ -5,6 +5,7 @@ use crate::inventory::inventory_manager::Server;
 use crate::shared::pg_dist_node_info_result::PgDistNodeInfoResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use tokio::task::JoinSet;
 
 pub struct FactsCollector<'a> {
     settings: &'a Arc<Mutex<HashMap<String, String>>>,
@@ -51,56 +52,63 @@ impl<'a> FactsCollector<'a> {
                 _ => {}
             }
         }
+        let mut set = JoinSet::new();
 
-        for server in self.servers.iter_mut() {
-            let connection_string = &server.to_string();
-            if let Some(true) = collect_postgres_facts {
-                let postgres_facts_collector = PostgresFactsCollector::new(connection_string);
-                let pg_stat_replication_result =
-                    postgres_facts_collector.check_pg_stat_replication().await;
-                let pg_stat_wal_receiver_result =
-                    postgres_facts_collector.check_pg_stat_wal_receiver().await;
-                match pg_stat_replication_result {
-                    Ok(value) => {
-                        if !value.is_empty() {
-                            server.postgres_is_leader = Some(true);
-                        } else {
-                            server.postgres_is_leader = Some(false);
+        for server_1 in self.servers.iter_mut() {
+            let mut server = server_1.clone();
+            set.spawn(async move {
+                let connection_string = &server.to_string();
+                if let Some(true) = collect_postgres_facts {
+                    let postgres_facts_collector = PostgresFactsCollector::new(connection_string);
+                    let pg_stat_replication_result =
+                        postgres_facts_collector.check_pg_stat_replication().await;
+                    let pg_stat_wal_receiver_result =
+                        postgres_facts_collector.check_pg_stat_wal_receiver().await;
+                    match pg_stat_replication_result {
+                        Ok(value) => {
+                            if !value.is_empty() {
+                                server.postgres_is_leader = Some(true);
+                            } else {
+                                server.postgres_is_leader = Some(false);
+                            }
+                            server.is_node_online = Some(true);
                         }
-                        server.is_node_online = Some(true);
-                    }
-                    _ => {
-                        server.is_node_online = Some(false);
-                    }
-                }
-                match pg_stat_wal_receiver_result {
-                    Ok(value) => {
-                        if !value.is_empty() {
-                            server.postgres_is_replica = Some(true);
-                        } else {
-                            server.postgres_is_replica = Some(false);
+                        _ => {
+                            server.is_node_online = Some(false);
                         }
                     }
-                    _ => {}
-                }
-            }
-
-            if let Some(true) = collect_patroni_facts {
-                let patroni_connection_string = format!("http://{}:8008/", server.host);
-                let patroni_facts_collector =
-                    PatroniFactsCollector::new(&patroni_connection_string);
-                let node_status = patroni_facts_collector.check_node_status().await;
-                match node_status {
-                    Ok(value) => {
-                        server.patroni_is_primary = value.is_primary;
-                        server.patroni_is_replica = value.is_replica;
-                        server.patroni_is_read_write = value.is_read_write;
-                        server.patroni_is_read_only = value.is_read_only;
+                    match pg_stat_wal_receiver_result {
+                        Ok(value) => {
+                            if !value.is_empty() {
+                                server.postgres_is_replica = Some(true);
+                            } else {
+                                server.postgres_is_replica = Some(false);
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
-            }
+
+                if let Some(true) = collect_patroni_facts {
+                    let patroni_connection_string = format!("http://{}:8008/", server.host);
+                    let patroni_facts_collector =
+                        PatroniFactsCollector::new(&patroni_connection_string);
+                    let node_status = patroni_facts_collector.check_node_status().await;
+                    match node_status {
+                        Ok(value) => {
+                            server.patroni_is_primary = value.is_primary;
+                            server.patroni_is_replica = value.is_replica;
+                            server.patroni_is_read_write = value.is_read_write;
+                            server.patroni_is_read_only = value.is_read_only;
+                        }
+                        _ => {}
+                    }
+                }
+                server
+            });
         }
+
+        let x = set.join_all().await;
 
         let first_server_online = self
             .servers
