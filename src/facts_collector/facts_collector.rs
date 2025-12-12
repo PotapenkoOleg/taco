@@ -43,50 +43,9 @@ impl<'a> FactsCollector<'a> {
         for server in servers.iter_mut() {
             let mut server_clone = server.clone();
             join_set_extract.spawn(async move {
-                let connection_string = server_clone.to_string();
-                let postgres_facts_collector = PostgresFactsCollector::new(&connection_string);
-                let pg_stat_replication_result =
-                    postgres_facts_collector.check_pg_stat_replication().await;
-                let pg_stat_wal_receiver_result =
-                    postgres_facts_collector.check_pg_stat_wal_receiver().await;
-                match pg_stat_replication_result {
-                    Ok(value) => {
-                        if !value.is_empty() {
-                            server_clone.postgres_is_leader = Some(true);
-                        } else {
-                            server_clone.postgres_is_leader = Some(false);
-                        }
-                        server_clone.is_node_online = Some(true);
-                    }
-                    _ => {
-                        server_clone.is_node_online = Some(false);
-                    }
-                }
-                match pg_stat_wal_receiver_result {
-                    Ok(value) => {
-                        if !value.is_empty() {
-                            server_clone.postgres_is_replica = Some(true);
-                        } else {
-                            server_clone.postgres_is_replica = Some(false);
-                        }
-                    }
-                    _ => {}
-                }
-
+                Self::update_postgres_status(&mut server_clone).await;
                 if let Some(true) = collect_patroni_facts {
-                    let patroni_connection_string = format!("http://{}:8008/", server_clone.host);
-                    let patroni_facts_collector =
-                        PatroniFactsCollector::new(&patroni_connection_string);
-                    let node_status = patroni_facts_collector.check_node_status().await;
-                    match node_status {
-                        Ok(value) => {
-                            server_clone.patroni_is_primary = value.is_primary;
-                            server_clone.patroni_is_replica = value.is_replica;
-                            server_clone.patroni_is_read_write = value.is_read_write;
-                            server_clone.patroni_is_read_only = value.is_read_only;
-                        }
-                        _ => {}
-                    }
+                    Self::update_patroni_status(&mut server_clone).await;
                 }
                 server_clone
             });
@@ -147,46 +106,96 @@ impl<'a> FactsCollector<'a> {
                             .map(|v| (v.nodename.as_ref().unwrap().clone(), (*v).clone()))
                             .collect();
                         for server in servers.iter_mut() {
-                            if let Some(node_info) = node_info.get(&server.host) {
-                                if server.host == node_info.nodename.clone().unwrap() {
-                                    if let Some(groupid) = node_info.groupid
-                                        && let Some(noderole) = node_info.noderole.clone()
-                                    {
-                                        server.citus_group_id = Some(groupid);
-                                        if groupid == 0 && noderole == "primary" {
-                                            server.citus_is_leader_coordinator_node = Some(true);
-                                            server.citus_is_replica_coordinator_node = Some(false);
-                                            server.citus_is_leader_worker_node = Some(false);
-                                            server.citus_is_replica_worker_node = Some(false);
-                                            continue;
-                                        }
-                                        if groupid == 0 && noderole == "secondary" {
-                                            server.citus_is_leader_coordinator_node = Some(false);
-                                            server.citus_is_replica_coordinator_node = Some(true);
-                                            server.citus_is_leader_worker_node = Some(false);
-                                            server.citus_is_replica_worker_node = Some(false);
-                                            continue;
-                                        }
-                                        if groupid != 0 && noderole == "primary" {
-                                            server.citus_is_leader_coordinator_node = Some(false);
-                                            server.citus_is_replica_coordinator_node = Some(false);
-                                            server.citus_is_leader_worker_node = Some(true);
-                                            server.citus_is_replica_worker_node = Some(false);
-                                            continue;
-                                        }
-                                        if groupid != 0 && noderole == "secondary" {
-                                            server.citus_is_leader_coordinator_node = Some(false);
-                                            server.citus_is_replica_coordinator_node = Some(false);
-                                            server.citus_is_leader_worker_node = Some(false);
-                                            server.citus_is_replica_worker_node = Some(true);
-                                            continue;
-                                        }
-                                    }
-                                }
-                            }
+                            Self::update_citus_status(server, &node_info)
                         }
                     }
                     _ => {}
+                }
+            }
+        }
+    }
+
+    async fn update_postgres_status(server_clone: &mut Server) {
+        let postgres_connection_string = server_clone.to_string();
+        let postgres_facts_collector = PostgresFactsCollector::new(&postgres_connection_string);
+        let pg_stat_replication_result = postgres_facts_collector.check_pg_stat_replication().await;
+        let pg_stat_wal_receiver_result =
+            postgres_facts_collector.check_pg_stat_wal_receiver().await;
+        match pg_stat_replication_result {
+            Ok(value) => {
+                if !value.is_empty() {
+                    server_clone.postgres_is_leader = Some(true);
+                } else {
+                    server_clone.postgres_is_leader = Some(false);
+                }
+                server_clone.is_node_online = Some(true);
+            }
+            _ => {
+                server_clone.is_node_online = Some(false);
+            }
+        }
+        match pg_stat_wal_receiver_result {
+            Ok(value) => {
+                if !value.is_empty() {
+                    server_clone.postgres_is_replica = Some(true);
+                } else {
+                    server_clone.postgres_is_replica = Some(false);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn update_patroni_status(server_clone: &mut Server) {
+        let patroni_connection_string = format!("http://{}:8008/", server_clone.host);
+        let patroni_facts_collector = PatroniFactsCollector::new(&patroni_connection_string);
+        let node_status = patroni_facts_collector.check_node_status().await;
+        match node_status {
+            Ok(value) => {
+                server_clone.patroni_is_primary = value.is_primary;
+                server_clone.patroni_is_replica = value.is_replica;
+                server_clone.patroni_is_read_write = value.is_read_write;
+                server_clone.patroni_is_read_only = value.is_read_only;
+            }
+            _ => {}
+        }
+    }
+
+    fn update_citus_status(server: &mut Server, node_info: &HashMap<String, PgDistNodeInfoResult>) {
+        if let Some(node_info) = node_info.get(&server.host) {
+            if server.host == node_info.nodename.clone().unwrap() {
+                if let Some(groupid) = node_info.groupid
+                    && let Some(noderole) = node_info.noderole.clone()
+                {
+                    server.citus_group_id = Some(groupid);
+                    if groupid == 0 && noderole == "primary" {
+                        server.citus_is_leader_coordinator_node = Some(true);
+                        server.citus_is_replica_coordinator_node = Some(false);
+                        server.citus_is_leader_worker_node = Some(false);
+                        server.citus_is_replica_worker_node = Some(false);
+                        return;
+                    }
+                    if groupid == 0 && noderole == "secondary" {
+                        server.citus_is_leader_coordinator_node = Some(false);
+                        server.citus_is_replica_coordinator_node = Some(true);
+                        server.citus_is_leader_worker_node = Some(false);
+                        server.citus_is_replica_worker_node = Some(false);
+                        return;
+                    }
+                    if groupid != 0 && noderole == "primary" {
+                        server.citus_is_leader_coordinator_node = Some(false);
+                        server.citus_is_replica_coordinator_node = Some(false);
+                        server.citus_is_leader_worker_node = Some(true);
+                        server.citus_is_replica_worker_node = Some(false);
+                        return;
+                    }
+                    if groupid != 0 && noderole == "secondary" {
+                        server.citus_is_leader_coordinator_node = Some(false);
+                        server.citus_is_replica_coordinator_node = Some(false);
+                        server.citus_is_leader_worker_node = Some(false);
+                        server.citus_is_replica_worker_node = Some(true);
+                        return;
+                    }
                 }
             }
         }
