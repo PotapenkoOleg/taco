@@ -161,6 +161,6 @@ impl<'a> InventoryManager<'a> {
 }
 impl Drop for InventoryManager<'_> {
     fn drop(&mut self) {
-        println!("Dropping InventoryManager!");
+        // println!("Dropping InventoryManager!");
     }
 }

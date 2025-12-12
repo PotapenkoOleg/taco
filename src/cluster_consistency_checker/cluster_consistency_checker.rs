@@ -6,17 +6,13 @@ use std::sync::{Arc, Mutex};
 
 pub struct ClusterConsistencyChecker<'a> {
     settings: &'a Arc<Mutex<HashMap<String, String>>>,
-    servers: &'a mut Vec<Server>,
 }
 impl<'a> ClusterConsistencyChecker<'a> {
-    pub fn new(
-        settings: &'a Arc<Mutex<HashMap<String, String>>>,
-        servers: &'a mut Vec<Server>,
-    ) -> Self {
-        Self { settings, servers }
+    pub fn new(settings: &'a Arc<Mutex<HashMap<String, String>>>) -> Self {
+        Self { settings }
     }
 
-    pub fn check_cluster_consistency(&mut self) -> bool {
+    pub fn check_cluster_consistency(&mut self, servers: &mut Vec<Server>) -> bool {
         let mut check_cluster_consistency: Option<bool> = None;
         {
             // this block for mutex release
@@ -30,14 +26,13 @@ impl<'a> ClusterConsistencyChecker<'a> {
         }
 
         if let Some(true) = check_cluster_consistency {
-            if self.servers.len() == 1
-                && self.servers[0].postgres_is_leader == Some(false)
-                && self.servers[0].postgres_is_replica == Some(false)
+            if servers.len() == 1
+                && servers[0].postgres_is_leader == Some(false)
+                && servers[0].postgres_is_replica == Some(false)
             {
                 return true;
             }
-            let result = self
-                .servers
+            let result = servers
                 .par_iter_mut()
                 .map(|server| Self::check_server_consistency(server))
                 .all(|check_result| check_result == true);
@@ -126,6 +121,6 @@ impl<'a> ClusterConsistencyChecker<'a> {
 
 impl Drop for ClusterConsistencyChecker<'_> {
     fn drop(&mut self) {
-        println!("Dropping ClusterConsistencyChecker!");
+        // println!("Dropping ClusterConsistencyChecker!");
     }
 }

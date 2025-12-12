@@ -55,7 +55,6 @@ async fn main() {
     }
 
     println!("Loading Inventory File: <{}> ", inventory_file_name);
-
     let mut inventory_manager = InventoryManager::new(inventory_file_name);
     let file_load_result = inventory_manager.load_inventory_from_file().await;
     if file_load_result.is_err() {
@@ -63,11 +62,11 @@ async fn main() {
         process::exit(1);
     }
     let static_server_groups = inventory_manager.get_static_server_groups();
-    drop(inventory_manager);
     if static_server_groups.is_none() {
         eprintln!("{}", "Static server groups not defined".red());
         process::exit(1);
     }
+    drop(inventory_manager);
     let (server_groups, citus_db_name) = static_server_groups.unwrap();
     println!("{}", "DONE Loading Inventory File".green());
     print_separator();
@@ -82,14 +81,14 @@ async fn main() {
     print_separator();
 
     println!("Checking Cluster Consistency");
-    let mut consistency_checker = ClusterConsistencyChecker::new(&settings, &mut servers_to_check);
-    if consistency_checker.check_cluster_consistency() {
+    let mut consistency_checker = ClusterConsistencyChecker::new(&settings);
+    if consistency_checker.check_cluster_consistency(&mut servers_to_check) {
         println!("{}", "CLUSTER IS CONSISTENT".green());
     } else {
         println!("{}", "CLUSTER IS NOT CONSISTENT".red());
     }
     drop(consistency_checker);
-    server_provider.update_server_group("all".to_string(), servers_to_check.clone());
+    server_provider.update_server_group("all".to_string(), servers_to_check);
     println!("{}", "DONE Checking Cluster Consistency".green());
     print_separator();
 

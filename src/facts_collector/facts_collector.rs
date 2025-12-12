@@ -195,6 +195,6 @@ impl<'a> FactsCollector<'a> {
 
 impl Drop for FactsCollector<'_> {
     fn drop(&mut self) {
-        println!("Dropping FactsCollector!");
+        // println!("Dropping FactsCollector!");
     }
 }
