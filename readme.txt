@@ -7,9 +7,12 @@
 
 
 Backlog
-1. facts_collector
-2. Patroni support
-3. Citus support
 4. Ability to run macro commands like drop db (disconnect users then drop)
 5. Graph engine
-6. Inventory improvements. Get information about envs, switch env etc
+
+Version history
+0.6.0
+Cluster consistency checking
+
+0.7.0
+Dynamic server groups
