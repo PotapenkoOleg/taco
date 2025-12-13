@@ -1,2 +1,2 @@
-# taco
-Tool to run command on multiple DB instances
+# Taco
+Tool to run command on multiple postgres DB instances
