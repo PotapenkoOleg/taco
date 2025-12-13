@@ -6,6 +6,7 @@ mod facts_collector;
 mod input_parser;
 mod inventory;
 mod server_provider;
+mod settings_provider;
 mod shared;
 
 use crate::clap_parser::Args;
@@ -13,6 +14,7 @@ use crate::cluster_consistency_checker::cluster_consistency_checker::ClusterCons
 use crate::facts_collector::facts_collector::FactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::server_provider::server_provider::ServerProvider;
+use crate::settings_provider::settings_provider::SettingsProvider;
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
     VERSION_MINOR, VERSION_PATCH,
@@ -44,6 +46,11 @@ async fn main() {
     print_banner();
     print_separator();
     let inventory_file_name = &args.inventory;
+    //let mut settings_provider = SettingsProvider::new();
+    //settings_provider.set_key("current_db".to_string(), "postgres".to_string());
+    //settings_provider.set_key("collect_citus_facts".to_string(), "true".to_string());
+    //settings_provider.set_key("collect_patroni_facts".to_string(), "true".to_string());
+    //settings_provider.set_key("check_cluster_consistency".to_string(), "true".to_string());
     let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
     {
         // this block for mutex release
@@ -73,9 +80,11 @@ async fn main() {
 
     println!("Collecting Facts");
     let mut server_provider = ServerProvider::new(server_groups).await;
-    let mut servers_to_check = server_provider.get_servers_in_group("all");
+    let mut servers_to_check = server_provider.get_servers_in_group("all").unwrap();
     let facts_collector = FactsCollector::new(&settings);
-    facts_collector.collect_facts(&mut servers_to_check, citus_db_name).await;
+    facts_collector
+        .collect_facts(&mut servers_to_check, citus_db_name)
+        .await;
     drop(facts_collector);
     println!("{}", "DONE Collecting Facts".green());
     print_separator();
@@ -88,11 +97,11 @@ async fn main() {
         println!("{}", "CLUSTER IS NOT CONSISTENT".red());
     }
     drop(consistency_checker);
-    server_provider.update_server_group("all".to_string(), servers_to_check);
+    server_provider.update_server_groups(servers_to_check);
     println!("{}", "DONE Checking Cluster Consistency".green());
     print_separator();
 
-    let servers = server_provider.get_servers_in_group("all");
+    let servers = server_provider.get_servers_in_group("all").unwrap();
     println!("Found {} servers", servers.len());
     render_severs_table(servers);
     print_separator();
@@ -116,6 +125,76 @@ async fn main() {
         let mut command = String::new();
         io::stdin().read_line(&mut command).unwrap();
         let preprocessed_command = command.to_lowercase().trim().to_string();
+        if preprocessed_command.cmp(&"help".to_string()).is_eq() {
+            println!("{}", "FORMAT: <SERVER_GROUP><SEPARATOR><COMMAND>".yellow());
+            println!("\"?\" - separator for query");
+            println!("\"!\" - separator for command");
+            println!("{}", "Examples: ".green());
+            println!(
+                "{}",
+                "primary ? select version(); -- get postgres version on static primary group"
+                    .green()
+            );
+            println!(
+                "{}",
+                "dr ! create extension citus; -- creates extension citus on static dr group"
+                    .green()
+            );
+            println!("{}", "BUILD IN DYNAMIC SERVER GROUPS".yellow());
+            println!(
+                "{}",
+                "EXCEPT for \"all\", \"online\", \"haproxy_rw\" and \"haproxy_r\" groups".magenta()
+            );
+            println!(
+                "{}",
+                "servers which are offline or inconsistent are ignored".magenta()
+            );
+            println!("all - all nodes in static config");
+            println!("online - any node online");
+            println!("cons - any consistent node");
+            println!("pgl - postgres replication leader nodes (citus workers and coordinators)");
+            println!("pgr - postgres replication replica nodes (citus workers and coordinators)");
+            println!("clc - citus leader coordinator nodes(CITUS 13+ can have many leaders)");
+            println!("crc - citus replica coordinator nodes");
+            println!("clw - citus leader worker nodes");
+            println!("crw - citus replica worker nodes");
+            println!("caw - citus active worker nodes(exclude nodes without shards)");
+            println!("pp - patroni primary nodes (citus workers and coordinators)");
+            println!("pr - patroni replica nodes (citus workers and coordinators)");
+            println!("prw - patroni read write nodes (citus workers and coordinators)");
+            println!(
+                "haproxy_rw - haproxy read-write worker node (current citus leader coordinator)"
+            );
+            println!(
+                "haproxy_r - haproxy read-only worker node (effectively random active worker node)"
+            );
+            println!("{}", "Examples: ".green());
+            println!("{}",
+                     "caw ? select citus_version(); -- checks citus version on all active workers (switch to citus DB first)".green()
+            );
+            println!(
+                "{}",
+                "clc ! create database constellation; -- creates local db on citus coordinator"
+                    .green()
+            );
+            println!("{}", "OTHER COMMANDS".yellow());
+            println!("use <db_name> - switches DB to <db_name>. Default DB is postgres");
+            println!(
+                "{}",
+                "Example: use constellation - switches DB to constellation".green()
+            );
+            println!(
+                "show <true|false> - enable or disables data types in output tables. Default is true"
+            );
+            println!(
+                "{}",
+                "Example: show false - disables data types to save space".green()
+            );
+            println!("history - shows commands history");
+            println!("exit - exits program");
+
+            continue;
+        }
         if preprocessed_command.cmp(&"exit".to_string()).is_eq() {
             println!("{}", "BYE-BYE!".yellow());
             process::exit(0);
@@ -130,15 +209,6 @@ async fn main() {
                 trim_newline(value);
                 println!("{}: {}", index, value)
             }
-            continue;
-        }
-        if preprocessed_command.cmp(&"help".to_string()).is_eq() {
-            println!("FORMAT: <SERVER_GROUP><SEPARATOR><COMMAND>");
-            println!("\"?\" - separator for query");
-            println!("\"!\" - separator for command");
-            println!("Examples: ");
-            println!("primary ? select version();");
-            println!("dr ! create extension citus;");
             continue;
         }
         if preprocessed_command.starts_with("use") {
@@ -163,11 +233,11 @@ async fn main() {
                 println!("{}", "SHOW COMMAND FORMAT: show <true|false>".yellow());
                 continue;
             }
-            println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[2]).yellow());
+            println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[1]).yellow());
             {
                 // this block for mutex release
                 let mut settings_lock = settings.lock().unwrap();
-                settings_lock.insert("show_data_types".to_string(), parts_vec[2].to_string());
+                settings_lock.insert("show_data_types".to_string(), parts_vec[1].to_string());
             }
             continue;
         }
@@ -182,14 +252,19 @@ async fn main() {
                 continue;
             }
             _ => {
-                history.push(command.clone());
                 let get_raw_command_result = get_raw_command(&command, &request_type);
                 let raw_server_group = get_raw_command_result.0;
                 let raw_command = get_raw_command_result.1;
                 let servers = server_provider.get_servers_in_group(&raw_server_group);
+                if servers.is_none() {
+                    println!("{}", "UNKNOWN SERVER GROUP NAME".red());
+                    continue;
+                }
+                history.push(command.clone());
                 let settings_clone = settings.clone();
                 let handle = tokio::spawn(async move {
-                    process_request(raw_command, request_type, servers, settings_clone).await
+                    process_request(raw_command, request_type, servers.unwrap(), settings_clone)
+                        .await
                 });
                 handle.await.unwrap();
             }
@@ -239,10 +314,10 @@ fn render_severs_table(mut servers: Vec<Server>) {
         Cell::new("ct"),
         Cell::new("pg leader"),
         Cell::new("pg replica"),
-        Cell::new("ct L coord"),
-        Cell::new("ct R coord"),
-        Cell::new("ct L wk"),
-        Cell::new("ct R wk"),
+        Cell::new("ct l coord"),
+        Cell::new("ct r coord"),
+        Cell::new("ct l wk"),
+        Cell::new("ct r wk"),
         Cell::new("pt primary"),
         Cell::new("pt replica"),
     ]));
@@ -322,11 +397,9 @@ fn trim_newline(s: &mut String) {
 }
 
 async fn process_request(
-    //command: String,
     raw_command: String,
     request_type: RequestType,
     servers: Vec<Server>,
-    // inventory_manager: &InventoryManager,
     settings: Arc<Mutex<HashMap<String, String>>>,
 ) {
     print_separator();
