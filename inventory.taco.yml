@@ -3,7 +3,7 @@ name: organization
 default_environment_name: dev
 environments:
   - name: dev
-    default_cluster_name: cloud2
+    default_cluster_name: cloud
     clusters:
       - name: cloud
         default_port: 5432

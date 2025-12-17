@@ -5,6 +5,7 @@ mod cluster_consistency_checker;
 mod facts_collector;
 mod input_parser;
 mod inventory;
+mod macro_provider;
 mod server_provider;
 mod settings_provider;
 mod shared;
@@ -13,8 +14,10 @@ use crate::clap_parser::Args;
 use crate::cluster_consistency_checker::cluster_consistency_checker::ClusterConsistencyChecker;
 use crate::facts_collector::facts_collector::FactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
+use crate::macro_provider::macro_provider::MacroProvider;
 use crate::server_provider::server_provider::ServerProvider;
 use crate::settings_provider::settings_provider::SettingsProvider;
+use crate::shared::request_type::RequestType;
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
     VERSION_MINOR, VERSION_PATCH,
@@ -26,7 +29,6 @@ use prettytable::{Cell, Row, Table};
 use rust_decimal::Decimal;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::io::{self, Write};
 use std::net::IpAddr;
 use std::process;
@@ -56,9 +58,9 @@ async fn main() {
         // this block for mutex release
         let mut settings_lock = settings.lock().unwrap();
         settings_lock.insert("current_db".to_string(), "postgres".to_string());
-        settings_lock.insert("collect_citus_facts".to_string(), "false".to_string());
-        settings_lock.insert("collect_patroni_facts".to_string(), "false".to_string());
-        settings_lock.insert("check_cluster_consistency".to_string(), "false".to_string());
+        settings_lock.insert("collect_citus_facts".to_string(), "true".to_string());
+        settings_lock.insert("collect_patroni_facts".to_string(), "true".to_string());
+        settings_lock.insert("check_cluster_consistency".to_string(), "true".to_string());
     }
 
     println!("Loading Inventory File: <{}> ", inventory_file_name);
@@ -107,6 +109,7 @@ async fn main() {
     print_separator();
 
     let mut history: Vec<String> = Vec::new();
+    let macro_provider = MacroProvider::new();
     loop {
         let mut current_db: Option<String> = None;
         {
@@ -129,6 +132,7 @@ async fn main() {
             println!("{}", "FORMAT: <SERVER_GROUP><SEPARATOR><COMMAND>".yellow());
             println!("\"?\" - separator for query");
             println!("\"!\" - separator for command");
+            println!("\"$\" - separator for macro");
             println!("{}", "Examples: ".green());
             println!(
                 "{}",
@@ -139,6 +143,10 @@ async fn main() {
                 "{}",
                 "dr ! create extension citus; -- creates extension citus on static dr group"
                     .green()
+            );
+            println!(
+                "{}",
+                "prw $ drop_db -- gracefully drops DB (you need switch postgres DB first)".green()
             );
             println!("{}", "BUILD IN DYNAMIC SERVER GROUPS".yellow());
             println!(
@@ -184,8 +192,9 @@ async fn main() {
                 "Example: use constellation - switches DB to constellation".green()
             );
             println!(
-                "show <true|false> - enable or disables data types in output tables. Default is true"
+                "show datatypes <true|false> - enable or disables data types in output tables. Default is true"
             );
+            println!("show macro - show build-in macro commands");
             println!(
                 "{}",
                 "Example: show false - disables data types to save space".green()
@@ -229,16 +238,29 @@ async fn main() {
         if preprocessed_command.starts_with("show") {
             let parts = preprocessed_command.split(" ");
             let parts_vec: Vec<&str> = parts.collect();
-            if parts_vec.len() < 2usize {
-                println!("{}", "SHOW COMMAND FORMAT: show <true|false>".yellow());
+
+            if parts_vec[1] == "datatypes" {
+                if parts_vec.len() < 3usize {
+                    println!(
+                        "{}",
+                        "SHOW COMMAND FORMAT: show datatypes <true|false>".yellow()
+                    );
+                    continue;
+                }
+                println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[2]).yellow());
+                {
+                    // this block for mutex release
+                    let mut settings_lock = settings.lock().unwrap();
+                    settings_lock.insert("show_data_types".to_string(), parts_vec[2].to_string());
+                }
+            }
+            if parts_vec[1] == "macro" {
+                for macro_name in macro_provider.get_macro_names() {
+                    println!("{} - {}", macro_name.0.magenta(), macro_name.1);
+                }
                 continue;
             }
-            println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[1]).yellow());
-            {
-                // this block for mutex release
-                let mut settings_lock = settings.lock().unwrap();
-                settings_lock.insert("show_data_types".to_string(), parts_vec[1].to_string());
-            }
+
             continue;
         }
         if preprocessed_command.is_empty() {
@@ -250,6 +272,57 @@ async fn main() {
             RequestType::Unknown => {
                 println!("{}", "UNKNOWN REQUEST TYPE".red());
                 continue;
+            }
+            RequestType::Macro => {
+                let get_raw_command_result = get_raw_command(&command, &request_type);
+                let raw_server_group = get_raw_command_result.0;
+                let raw_command = get_raw_command_result.1;
+
+                if !macro_provider.is_macro_exists(&raw_command) {
+                    println!("{}", "UNKNOWN MACRO NAME".red());
+                    continue;
+                }
+
+                let macro_parameters = macro_provider.get_macro_parameters(&raw_command);
+                let mut macro_values = HashMap::<String, String>::new();
+                if let Some(macro_parameters) = &macro_parameters {
+                    if !macro_parameters.is_empty() {
+                        println!("{}", "INPUT PARAMETERS FOR MACRO".yellow());
+                    }
+                    for parameter in macro_parameters {
+                        let _ = io::stdout().write(format!("{} = ", &parameter[..]).as_bytes());
+                        let _ = io::stdout().flush();
+                        let mut parameter_value = String::new();
+                        io::stdin().read_line(&mut parameter_value).unwrap();
+                        macro_values
+                            .insert(parameter.to_string(), parameter_value.trim().to_string());
+                    }
+                }
+                let macro_commands =
+                    macro_provider.get_macro(&raw_command, macro_parameters, macro_values);
+
+                let macro_request_type =
+                    macro_provider.get_macro_request_type(&raw_command).unwrap();
+
+                for raw_command in macro_commands.unwrap() {
+                    let settings_clone = settings.clone();
+                    let servers = server_provider.get_servers_in_group(&raw_server_group);
+                    if servers.is_none() {
+                        println!("{}", "UNKNOWN SERVER GROUP NAME".red());
+                        continue;
+                    }
+                    let macro_request_type_clone = macro_request_type.clone();
+                    let handle = tokio::spawn(async move {
+                        process_request(
+                            raw_command,
+                            macro_request_type_clone,
+                            servers.unwrap(),
+                            settings_clone,
+                        )
+                        .await
+                    });
+                    handle.await.unwrap();
+                }
             }
             _ => {
                 let get_raw_command_result = get_raw_command(&command, &request_type);
@@ -474,6 +547,7 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
     let request_separator = match request_type {
         RequestType::Query => "?".to_string(),
         RequestType::Command => "!".to_string(),
+        RequestType::Macro => "$".to_string(),
         _ => "".to_string(),
     };
 
@@ -847,14 +921,6 @@ async fn process_macro(
     tx: Sender<String>,
 ) -> Result<u64, Error> {
     Ok(0u64)
-}
-
-#[derive(Clone, Debug)]
-enum RequestType {
-    Query,
-    Command,
-    Macro,
-    Unknown,
 }
 
 struct IntervalWrapper {}
