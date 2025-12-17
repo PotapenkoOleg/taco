@@ -56,9 +56,9 @@ async fn main() {
         // this block for mutex release
         let mut settings_lock = settings.lock().unwrap();
         settings_lock.insert("current_db".to_string(), "postgres".to_string());
-        settings_lock.insert("collect_citus_facts".to_string(), "true".to_string());
-        settings_lock.insert("collect_patroni_facts".to_string(), "true".to_string());
-        settings_lock.insert("check_cluster_consistency".to_string(), "true".to_string());
+        settings_lock.insert("collect_citus_facts".to_string(), "false".to_string());
+        settings_lock.insert("collect_patroni_facts".to_string(), "false".to_string());
+        settings_lock.insert("check_cluster_consistency".to_string(), "false".to_string());
     }
 
     println!("Loading Inventory File: <{}> ", inventory_file_name);
@@ -423,6 +423,9 @@ async fn process_request(
                 RequestType::Command => {
                     process_command(server, command_clone, settings_clone, tx_clone).await
                 }
+                RequestType::Macro => {
+                    process_macro(server, command_clone, settings_clone, tx_clone).await
+                }
                 _ => Ok(0u64),
             }
         });
@@ -461,6 +464,9 @@ fn get_request_type(command: &String) -> RequestType {
     if command.contains("!") {
         return RequestType::Command;
     }
+    if command.contains("$") {
+        return RequestType::Macro;
+    }
     RequestType::Unknown
 }
 
@@ -477,7 +483,7 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
         .map(|x| x.to_string().trim().to_lowercase())
         .collect();
 
-    return (raw_parts.remove(0), raw_parts.remove(0));
+    (raw_parts.remove(0), raw_parts.remove(0))
 }
 
 async fn process_query(
@@ -834,10 +840,20 @@ async fn process_command(
     Ok(rows)
 }
 
+async fn process_macro(
+    mut server: Server,
+    command: String,
+    settings: Arc<Mutex<HashMap<String, String>>>,
+    tx: Sender<String>,
+) -> Result<u64, Error> {
+    Ok(0u64)
+}
+
 #[derive(Clone, Debug)]
 enum RequestType {
     Query,
     Command,
+    Macro,
     Unknown,
 }
 
