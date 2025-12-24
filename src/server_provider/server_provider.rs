@@ -65,7 +65,7 @@ impl ServerProvider {
         // region SERVER_GROUP_ONLINE
         let online_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.is_node_online.unwrap())
+            .filter(|s| s.is_node_online.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups
@@ -75,7 +75,7 @@ impl ServerProvider {
         // region SERVER_GROUP_CONS
         let consistent_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.is_node_consistent.unwrap())
+            .filter(|s| s.is_node_consistent.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups
@@ -85,7 +85,7 @@ impl ServerProvider {
         // region SERVER_GROUP_PGL
         let postgres_leader_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.postgres_is_leader.unwrap())
+            .filter(|s| s.postgres_is_leader.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups
@@ -95,7 +95,7 @@ impl ServerProvider {
         // region SERVER_GROUP_PGR
         let postgres_replica_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.postgres_is_replica.unwrap())
+            .filter(|s| s.postgres_is_replica.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups
@@ -105,7 +105,7 @@ impl ServerProvider {
         // region SERVER_GROUP_CLC
         let citus_leader_coordinator_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.citus_is_leader_coordinator_node.unwrap())
+            .filter(|s| s.citus_is_leader_coordinator_node.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups.insert(
@@ -117,7 +117,7 @@ impl ServerProvider {
         // region SERVER_GROUP_CRC
         let citus_replica_coordinator_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.citus_is_replica_coordinator_node.unwrap())
+            .filter(|s| s.citus_is_replica_coordinator_node.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups.insert(
@@ -129,7 +129,7 @@ impl ServerProvider {
         // region SERVER_GROUP_CLW
         let citus_leader_worker_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.citus_is_leader_worker_node.unwrap())
+            .filter(|s| s.citus_is_leader_worker_node.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups.insert(
@@ -141,7 +141,7 @@ impl ServerProvider {
         // region SERVER_GROUP_CRW
         let citus_replica_worker_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.citus_is_replica_worker_node.unwrap())
+            .filter(|s| s.citus_is_replica_worker_node.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups.insert(
@@ -153,7 +153,7 @@ impl ServerProvider {
         // region SERVER_GROUP_CAW
         let citus_active_worker_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.citus_is_active_worker_node.unwrap())
+            .filter(|s| s.citus_is_active_worker_node.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups.insert(
@@ -165,7 +165,7 @@ impl ServerProvider {
         // region SERVER_GROUP_PP
         let patroni_primary_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.patroni_is_primary.unwrap())
+            .filter(|s| s.patroni_is_primary.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups
@@ -175,7 +175,7 @@ impl ServerProvider {
         // region SERVER_GROUP_PR
         let patroni_replica_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.patroni_is_replica.unwrap())
+            .filter(|s| s.patroni_is_replica.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups
@@ -185,7 +185,7 @@ impl ServerProvider {
         // region SERVER_GROUP_PRW
         let patroni_read_write_server_group: Vec<Server> = main_server_group
             .par_iter()
-            .filter(|s| s.patroni_is_read_write.unwrap())
+            .filter(|s| s.patroni_is_read_write.unwrap_or(false))
             .map(|s| s.clone())
             .collect();
         self.server_groups.insert(

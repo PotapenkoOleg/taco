@@ -397,7 +397,7 @@ fn render_severs_table(mut servers: Vec<Server>) {
     for server in servers {
         // TODO: node offline
         table.add_row(Row::new(vec![
-            Cell::new(&server.citus_group_id.unwrap().to_string()),
+            Cell::new(&server.citus_group_id.unwrap_or(-1).to_string()),
             Cell::new(&server.host),
             Cell::new(if *(&server.is_node_online.unwrap_or(false)) {
                 "*"
