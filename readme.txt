@@ -16,3 +16,9 @@ Cluster consistency checking
 
 0.7.0
 Dynamic server groups
+
+0.8.0
+Macro commands support
+
+0.8.1
+Bugfixes
