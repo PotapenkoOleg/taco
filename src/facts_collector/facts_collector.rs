@@ -6,15 +6,15 @@ use crate::shared::pg_dist_node_info_result::PgDistNodeInfoResult;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::{IntoParallelRefIterator, IntoParallelRefMutIterator};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::task::JoinSet;
 
 pub struct FactsCollector<'a> {
-    settings: &'a Arc<Mutex<HashMap<String, String>>>,
+    settings: &'a Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl<'a> FactsCollector<'a> {
-    pub fn new(settings: &'a Arc<Mutex<HashMap<String, String>>>) -> Self {
+    pub fn new(settings: &'a Arc<RwLock<HashMap<String, String>>>) -> Self {
         FactsCollector { settings }
     }
 
@@ -22,8 +22,8 @@ impl<'a> FactsCollector<'a> {
         let mut collect_patroni_facts: Option<bool> = None;
         let mut collect_citus_facts: Option<bool> = None;
         {
-            // this block for mutex release
-            let settings_lock = self.settings.lock().unwrap();
+            // this block for read lock release
+            let settings_lock = self.settings.read().unwrap();
             match settings_lock.get(&"collect_patroni_facts".to_string()) {
                 Some(value) => {
                     collect_patroni_facts = Some(value == "true");
