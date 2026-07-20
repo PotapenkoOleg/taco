@@ -2,21 +2,21 @@ use crate::inventory::inventory_manager::Server;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelRefMutIterator;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 pub struct ClusterConsistencyChecker<'a> {
-    settings: &'a Arc<Mutex<HashMap<String, String>>>,
+    settings: &'a Arc<RwLock<HashMap<String, String>>>,
 }
 impl<'a> ClusterConsistencyChecker<'a> {
-    pub fn new(settings: &'a Arc<Mutex<HashMap<String, String>>>) -> Self {
+    pub fn new(settings: &'a Arc<RwLock<HashMap<String, String>>>) -> Self {
         Self { settings }
     }
 
     pub fn check_cluster_consistency(&mut self, servers: &mut Vec<Server>) -> bool {
         let mut check_cluster_consistency: Option<bool> = None;
         {
-            // this block for mutex release
-            let settings_lock = self.settings.lock().unwrap();
+            // this block for read lock release
+            let settings_lock = self.settings.read().unwrap();
             match settings_lock.get(&"check_cluster_consistency".to_string()) {
                 Some(value) => {
                     check_cluster_consistency = Some(value == "true");

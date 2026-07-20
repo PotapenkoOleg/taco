@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug, Clone)]
 pub struct SettingsProvider {
     settings: Arc<Mutex<HashMap<String, String>>>,
 }

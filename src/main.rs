@@ -7,7 +7,6 @@ mod input_parser;
 mod inventory;
 mod macro_provider;
 mod server_provider;
-mod settings_provider;
 mod shared;
 
 use crate::clap_parser::Args;
@@ -16,7 +15,6 @@ use crate::facts_collector::facts_collector::FactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::macro_provider::macro_provider::MacroProvider;
 use crate::server_provider::server_provider::ServerProvider;
-use crate::settings_provider::settings_provider::SettingsProvider;
 use crate::shared::request_type::RequestType;
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
@@ -33,7 +31,7 @@ use std::io::{self, Write};
 use std::net::IpAddr;
 use std::process;
 use std::sync::LazyLock;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinSet;
@@ -48,15 +46,10 @@ async fn main() {
     print_banner();
     print_separator();
     let inventory_file_name = &args.inventory;
-    //let mut settings_provider = SettingsProvider::new();
-    //settings_provider.set_key("current_db".to_string(), "postgres".to_string());
-    //settings_provider.set_key("collect_citus_facts".to_string(), "true".to_string());
-    //settings_provider.set_key("collect_patroni_facts".to_string(), "true".to_string());
-    //settings_provider.set_key("check_cluster_consistency".to_string(), "true".to_string());
-    let settings = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+    let settings = Arc::new(RwLock::new(HashMap::<String, String>::new()));
     {
-        // this block for mutex release
-        let mut settings_lock = settings.lock().unwrap();
+        // this block for write lock release
+        let mut settings_lock = settings.write().unwrap();
         settings_lock.insert("current_db".to_string(), "postgres".to_string());
         settings_lock.insert("collect_citus_facts".to_string(), "true".to_string());
         settings_lock.insert("collect_patroni_facts".to_string(), "true".to_string());
@@ -113,8 +106,8 @@ async fn main() {
     loop {
         let mut current_db: Option<String> = None;
         {
-            // this block for mutex release
-            let settings_lock = settings.lock().unwrap();
+            // this block for read lock release
+            let settings_lock = settings.read().unwrap();
             match settings_lock.get(&"current_db".to_string()) {
                 Some(db_name) => {
                     current_db = Some(db_name.clone());
@@ -229,8 +222,8 @@ async fn main() {
             }
             println!("{}", format!("USING DB <{}>", parts_vec[1]).yellow());
             {
-                // this block for mutex release
-                let mut settings_lock = settings.lock().unwrap();
+                // this block for write lock release
+                let mut settings_lock = settings.write().unwrap();
                 settings_lock.insert("current_db".to_string(), parts_vec[1].to_string());
             }
             continue;
@@ -249,8 +242,8 @@ async fn main() {
                 }
                 println!("{}", format!("SHOW DATA TYPES <{}>", parts_vec[2]).yellow());
                 {
-                    // this block for mutex release
-                    let mut settings_lock = settings.lock().unwrap();
+                    // this block for write lock release
+                    let mut settings_lock = settings.write().unwrap();
                     settings_lock.insert("show_data_types".to_string(), parts_vec[2].to_string());
                 }
             }
@@ -473,7 +466,7 @@ async fn process_request(
     raw_command: String,
     request_type: RequestType,
     servers: Vec<Server>,
-    settings: Arc<Mutex<HashMap<String, String>>>,
+    settings: Arc<RwLock<HashMap<String, String>>>,
 ) {
     print_separator();
     println!("Processing: [{}]", &raw_command.green());
@@ -563,13 +556,13 @@ fn get_raw_command(command: &String, request_type: &RequestType) -> (String, Str
 async fn process_query(
     mut server: Server,
     query: String,
-    settings: Arc<Mutex<HashMap<String, String>>>,
+    settings: Arc<RwLock<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
     let mut show_data_types = false;
     {
-        // this block for mutex release
-        let settings_lock = settings.lock().unwrap();
+        // this block for read lock release
+        let settings_lock = settings.read().unwrap();
         match settings_lock.get(&"current_db".to_string()) {
             Some(db_name) => {
                 server.set_db_name(db_name.clone());
@@ -828,12 +821,12 @@ async fn process_query(
 async fn process_command(
     mut server: Server,
     command: String,
-    settings: Arc<Mutex<HashMap<String, String>>>,
+    settings: Arc<RwLock<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
     {
-        // this block for mutex release
-        let settings_lock = settings.lock().unwrap();
+        // this block for read lock release
+        let settings_lock = settings.read().unwrap();
         match settings_lock.get(&"current_db".to_string()) {
             Some(db_name) => {
                 server.set_db_name(db_name.clone());
@@ -917,7 +910,7 @@ async fn process_command(
 async fn process_macro(
     mut server: Server,
     command: String,
-    settings: Arc<Mutex<HashMap<String, String>>>,
+    settings: Arc<RwLock<HashMap<String, String>>>,
     tx: Sender<String>,
 ) -> Result<u64, Error> {
     Ok(0u64)
