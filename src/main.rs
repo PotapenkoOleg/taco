@@ -7,7 +7,6 @@ mod input_parser;
 mod inventory;
 mod macro_provider;
 mod server_provider;
-mod settings_provider;
 mod shared;
 
 use crate::clap_parser::Args;
@@ -16,7 +15,6 @@ use crate::facts_collector::facts_collector::FactsCollector;
 use crate::inventory::inventory_manager::{InventoryManager, Server};
 use crate::macro_provider::macro_provider::MacroProvider;
 use crate::server_provider::server_provider::ServerProvider;
-use crate::settings_provider::settings_provider::SettingsProvider;
 use crate::shared::request_type::RequestType;
 use crate::version::{
     COPYRIGHT, COPYRIGHT_YEARS, LICENSE, LINK, PRODUCT_NAME, VERSION_ALIAS, VERSION_MAJOR,
@@ -48,11 +46,6 @@ async fn main() {
     print_banner();
     print_separator();
     let inventory_file_name = &args.inventory;
-    //let mut settings_provider = SettingsProvider::new();
-    //settings_provider.set_key("current_db".to_string(), "postgres".to_string());
-    //settings_provider.set_key("collect_citus_facts".to_string(), "true".to_string());
-    //settings_provider.set_key("collect_patroni_facts".to_string(), "true".to_string());
-    //settings_provider.set_key("check_cluster_consistency".to_string(), "true".to_string());
     let settings = Arc::new(RwLock::new(HashMap::<String, String>::new()));
     {
         // this block for write lock release
