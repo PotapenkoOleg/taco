@@ -908,7 +908,7 @@ async fn process_command(
 }
 
 async fn process_macro(
-    mut server: Server,
+    server: Server,
     command: String,
     settings: Arc<RwLock<HashMap<String, String>>>,
     tx: Sender<String>,
